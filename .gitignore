@@ -1,0 +1,47 @@
+# Flutter/Dart
+.dart_tool/
+/.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+/.gradle
+**/build/
+**/generated/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+dist/
+
+# Python
+__pycache__/
+*.py[cod]
+env/
+venv/
+ENV/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDEs
+.vscode/
+*.iml
+/.idea/
+
+# Logs
+*.log
+
+# Local environment
+.env
+local.properties
+
+# Flutter assets
+*/ios/Flutter/Flutter.framework
+*/ios/Flutter/Flutter.podspec

@@ -1,0 +1,19 @@
+fastapi>=0.123.0
+uvicorn[standard]==0.24.0
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+redis==5.0.1
+pydantic>=2.12.0
+python-dotenv==1.0.0
+requests==2.31.0
+beautifulsoup4==4.12.2
+lxml==4.9.3
+# AutoGen framework for multi-agent AI systems
+autogen-agentchat>=0.4.0
+autogen-ext[openai]>=0.4.0
+autogen-core>=0.4.0
+google-generativeai==0.3.0
+httpx==0.25.2
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pdfplumber==0.10.3

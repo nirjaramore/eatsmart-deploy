@@ -34,7 +34,7 @@ const Hero: React.FC = () => {
             {/* Top header: left/right brand text and center nav links */}
             <header className="top-header" role="banner" style={{ zIndex: 11000 }}>
                 <div className="top-brand">
-                    <CircularText text="EATSMART" onHover="speedUp" spinDuration={120} className="top-brand-circular" centerImage={'/asset/Black and Purple Illustrative Beauty and Nail Art Studio Logo.png'} />
+                    eatsmart
                 </div>
                 <nav className="top-nav">
                     <a
@@ -65,6 +65,16 @@ const Hero: React.FC = () => {
                         onMouseLeave={() => setActiveLabel(null)}
                     >
                         <span className="link-inner">Community</span>
+                    </a>
+
+                    <a
+                        href="/product"
+                        className={`top-link ${activeLabel === 'Product' ? 'active' : ''}`}
+                        data-text="Product"
+                        onMouseEnter={() => setActiveLabel('Product')}
+                        onMouseLeave={() => setActiveLabel(null)}
+                    >
+                        <span className="link-inner">Product</span>
                     </a>
                 </nav>
             </header>

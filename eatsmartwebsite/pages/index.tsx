@@ -20,14 +20,14 @@ export default function Home() {
                     <CurvedLoop marqueeText="Join our community" className="curved-loop-text" interactive />
                 </section>
 
-                {/* Third section: GSAP auto-zoom bento gallery */}
+                {/* Third section: Image upload (placed above the auto-zoom gallery) */}
+                <ImageUploadExtract />
+
+                {/* Fourth section: GSAP auto-zoom bento gallery */}
                 <AutoZoomGallery />
 
-                {/* Fourth section: Scroll-pinned section with transitioning images */}
+                {/* Fifth section: Scroll-pinned section with transitioning images */}
                 <ScrollPinnedSection />
-
-                {/* Fifth section: Image upload + OCR demo */}
-                <ImageUploadExtract />
 
                 {/* Firebase upload removed — using client-side OCR only (ImageUploadExtract) */}
             </main>

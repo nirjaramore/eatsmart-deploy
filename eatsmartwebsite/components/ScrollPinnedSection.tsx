@@ -101,12 +101,19 @@ export default function ScrollPinnedSection() {
                         </div>
                         <div className="slide">
                             <div className="image-card">
-                                <img src="/asset/Coming Soon.jpeg" alt="Coming soon" />
+                                <video
+                                    className="replacement-video"
+                                    src="/asset/grok-video-bbe6f66c-2.mp4"
+                                    autoPlay
+                                    muted
+                                    loop
+                                    playsInline
+                                />
                             </div>
                         </div>
                         <div className="slide">
                             <div className="image-card">
-                                <img src="/asset/Image upload illustration concept _ Premium Vector.jpeg" alt="Upload your food" />
+                                <img src="/asset/freepik__talk__62086.png" alt="Upload your food" />
                             </div>
                         </div>
                         <div className="slide">
@@ -196,11 +203,15 @@ export default function ScrollPinnedSection() {
                     width: 100%;
                 }
 
-                .image-card img {
+                .image-card img,
+                .image-card video {
                     width: 100%;
                     height: auto;
                     display: block;
                     border-radius: 12px;
+                }
+
+                .image-card img {
                     filter: grayscale(100%) sepia(100%) saturate(300%) hue-rotate(320deg) brightness(1.1) contrast(0.95);
                     mix-blend-mode: multiply;
                 }

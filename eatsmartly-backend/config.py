@@ -12,10 +12,11 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
     # Database
-    DATABASE_URL: str = Field(
-        ...,
+    DATABASE_URL: Optional[str] = Field(
+        default=None,
         description="PostgreSQL connection string"
     )
+    # Note: only `DATABASE_URL` is used for DB connectivity. Remove other DB URL vars.
     
     # Redis
     REDIS_URL: str = Field(
@@ -31,6 +32,10 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: Optional[str] = Field(
         default=None,
         description="Google Gemini API key for LLM"
+    )
+    GOOGLE_API_KEY: Optional[str] = Field(
+        default=None,
+        description="Google API key (legacy, Vision uses service account)"
     )
     USDA_API_KEY: str = Field(
         ...,
@@ -68,10 +73,33 @@ class Settings(BaseSettings):
         default="https://api.api-ninjas.com/v1",
         description="API Ninjas base URL"
     )
+
+    # Supabase (optional)
+    SUPABASE_URL: Optional[str] = Field(
+        default=None,
+        description="Supabase project URL"
+    )
+    SUPABASE_ANON_KEY: Optional[str] = Field(
+        default=None,
+        description="Supabase anon/public key"
+    )
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = Field(
+        default=None,
+        description="Supabase service role key (used for storage uploads)"
+    )
+
+    # OCR.space API Key
+    OCR_SPACE_API_KEY: Optional[str] = Field(
+        default=None,
+        description="OCR.space API key for OCR service"
+    )
     
     # Application
     DEBUG: bool = Field(default=False)
     LOG_LEVEL: str = Field(default="INFO")
+    # Server runtime settings (allow .env entries like PORT and NODE_ENV)
+    PORT: int = Field(default=3000, description="Server port")
+    NODE_ENV: str = Field(default="development", description="Node/Env name")
     
     # API Configuration
     API_TIMEOUT: int = Field(

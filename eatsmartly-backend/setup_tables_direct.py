@@ -9,7 +9,11 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-DATABASE_URL = os.getenv('DATABASE_URL')
+DATABASE_URL = os.getenv('DATABASE_URL') or os.getenv('DATABASE_URL_SUPABASE')
+
+if not DATABASE_URL:
+    print("\nERROR: No DATABASE_URL or DATABASE_URL_SUPABASE found in environment.\nPlease set DATABASE_URL or DATABASE_URL_SUPABASE in your .env file and retry.")
+    raise SystemExit(1)
 
 print("=" * 80)
 print("🚀 EatSmartly Database Tables Setup")

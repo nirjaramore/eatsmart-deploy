@@ -17,3 +17,5 @@ httpx==0.25.2
 pytest==7.4.3
 pytest-asyncio==0.21.1
 pdfplumber==0.10.3
+# Google Cloud Vision API for OCR
+Pillow>=11.0.0

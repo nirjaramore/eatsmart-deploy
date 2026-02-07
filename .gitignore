@@ -45,3 +45,18 @@ local.properties
 # Flutter assets
 */ios/Flutter/Flutter.framework
 */ios/Flutter/Flutter.podspec
+
+# Next.js
+.next/
+out/
+
+# Node
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.production
+.env.development
+
+eatsmartly/

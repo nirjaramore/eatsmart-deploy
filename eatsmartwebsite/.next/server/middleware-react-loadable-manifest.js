@@ -1,1 +1,0 @@
-self.__REACT_LOADABLE_MANIFEST="{\"..\\\\components\\\\ImageUploadExtract.tsx -> @zxing/library\":{\"id\":\"..\\\\components\\\\ImageUploadExtract.tsx -> @zxing/library\",\"files\":[\"static/chunks/node_modules_zxing_library_esm_index_js.js\"]}}"

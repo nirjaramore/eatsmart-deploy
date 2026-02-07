@@ -76,7 +76,14 @@ export default function ScrollPinnedSection() {
         }, section)
 
         return () => {
+            // revert GSAP context (removes timelines/ScrollTriggers created inside the context)
             ctxRef.current?.revert()
+            // ensure any lingering ScrollTrigger instances are killed to avoid DOM mutation issues
+            try {
+                ScrollTrigger.getAll().forEach((t) => t.kill())
+            } catch (e) {
+                // ignore errors during cleanup
+            }
         }
     }, [])
 
@@ -101,17 +108,20 @@ export default function ScrollPinnedSection() {
                         </div>
                         <div className="slide">
                             <div className="image-card">
-                                <img src="/asset/Coming Soon.jpeg" alt="Coming soon" />
+                                <h3>Step 1</h3>
+                                <p style={{ marginTop: '8px' }}>Click a photo of your food using your phone or camera.</p>
                             </div>
                         </div>
                         <div className="slide">
                             <div className="image-card">
-                                <img src="/asset/Image upload illustration concept _ Premium Vector.jpeg" alt="Upload your food" />
+                                <h3>Step 2</h3>
+                                <p style={{ marginTop: '8px' }}>Upload it on our app — add details and confirm.</p>
                             </div>
                         </div>
                         <div className="slide">
                             <div className="image-card">
-                                <img src="/asset/Julia K.jpeg" alt="Get insights" />
+                                <h3>Step 3</h3>
+                                <p style={{ marginTop: '8px' }}>Contribute to our community — share, comment, and help improve data.</p>
                             </div>
                         </div>
                     </div>
@@ -196,11 +206,33 @@ export default function ScrollPinnedSection() {
                     width: 100%;
                 }
 
-                .image-card img {
+                /* Step heading styling: use same font as header and brand red color */
+                .image-card h3 {
+                    margin: 0;
+                    font-family: 'Baloo 2', Inter, sans-serif;
+                    font-weight: 700;
+                    color: #E53A33;
+                    font-size: 2rem;
+                    line-height: 1.05;
+                }
+
+                .image-card p {
+                    margin: 8px 0 0 0;
+                    font-family: 'Baloo 2', Inter, sans-serif;
+                    color: #E53A33;
+                    font-weight: 400;
+                    font-size: 1rem;
+                }
+
+                .image-card img,
+                .image-card video {
                     width: 100%;
                     height: auto;
                     display: block;
                     border-radius: 12px;
+                }
+
+                .image-card img {
                     filter: grayscale(100%) sepia(100%) saturate(300%) hue-rotate(320deg) brightness(1.1) contrast(0.95);
                     mix-blend-mode: multiply;
                 }

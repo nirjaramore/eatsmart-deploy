@@ -11,7 +11,7 @@ export default function About() {
                 {/* Top header similar to Hero */}
                 <header className="top-header" role="banner" style={{ zIndex: 11000 }}>
                     <div className="top-brand">
-                        EATSMART
+                        eatsmart
                     </div>
                     <nav className="top-nav">
                         <a href="/" className="top-link" data-text="Home">
@@ -22,6 +22,9 @@ export default function About() {
                         </a>
                         <a href="#" className="top-link" data-text="Community">
                             <span className="link-inner">Community</span>
+                        </a>
+                        <a href="/product" className="top-link" data-text="Product">
+                            <span className="link-inner">Product</span>
                         </a>
                     </nav>
                 </header>

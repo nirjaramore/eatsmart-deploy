@@ -20,14 +20,29 @@ export default function Home() {
                     <CurvedLoop marqueeText="Join our community" className="curved-loop-text" interactive />
                 </section>
 
-                {/* Third section: GSAP auto-zoom bento gallery */}
+                {/* (Moved) What we offer section will appear after the ScrollPinnedSection below */}
+
+                {/* Third section: Image upload (placed above the auto-zoom gallery) */}
+                <ImageUploadExtract />
+
+                {/* Fourth section: GSAP auto-zoom bento gallery */}
                 <AutoZoomGallery />
 
-                {/* Fourth section: Scroll-pinned section with transitioning images */}
+                {/* Fifth section: Scroll-pinned section with transitioning images */}
                 <ScrollPinnedSection />
 
-                {/* Fifth section: Image upload + OCR demo */}
-                <ImageUploadExtract />
+                {/* What we offer (background image) - placed after How We Work Together */}
+                <section
+                    aria-label="What we offer"
+                    className="what-we-offer"
+                    style={{
+                        backgroundImage: `url(${encodeURI('/asset/download (33).jpeg')})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        padding: '6rem 0',
+                        minHeight: '360px'
+                    }}
+                />
 
                 {/* Firebase upload removed — using client-side OCR only (ImageUploadExtract) */}
             </main>

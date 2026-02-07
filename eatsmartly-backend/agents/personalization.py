@@ -229,6 +229,36 @@ class PersonalizationAgent:
         is_safe = True
         risk_level = "low"
         
+        # Detect ultra-processed instant noodles and similar products
+        product_name = (food_data.get("product_name", "") or "").lower()
+        brand = (food_data.get("brand", "") or "").lower()
+        ingredients_raw = food_data.get("ingredients", [])
+        if isinstance(ingredients_raw, list):
+            ingredients = " ".join(ingredients_raw).lower() if ingredients_raw else ""
+        else:
+            ingredients = ingredients_raw.lower() if ingredients_raw else ""
+        
+        is_instant_noodles = False
+        instant_noodle_indicators = [
+            "maggi", "noodles", "instant noodles", "ramen", "2 minute", "top ramen",
+            "yippee", "wai wai", "sunfeast yippee", "knorr", "nissin", "indomie"
+        ]
+        
+        for indicator in instant_noodle_indicators:
+            if indicator in product_name or indicator in brand:
+                is_instant_noodles = True
+                break
+        
+        # Check ingredients for MSG, maida, palm oil - common in instant noodles
+        if not is_instant_noodles:
+            unhealthy_markers = ["msg", "monosodium glutamate", "maida", "palm oil", "flavor enhancer"]
+            marker_count = sum(1 for marker in unhealthy_markers if marker in ingredients)
+            if marker_count >= 2 and "noodle" in ingredients:
+                is_instant_noodles = True
+        
+        # Get health conditions early for instant noodles warnings
+        conditions = user_profile.get("health_conditions", [])
+        
         # Check allergens
         food_allergens = food_data.get("allergens", [])
         user_allergies = user_profile.get("allergies", [])
@@ -266,15 +296,36 @@ class PersonalizationAgent:
                 risk_level = "medium"
                 alerts.append("⚠️ Contains gluten (gluten-free restriction)")
         
-        # Check health conditions
-        conditions = user_profile.get("health_conditions", [])
-        
+        # Check diabetes condition for sugar
         if "diabetes" in conditions:
             sugar = food_data.get("sugar_g", 0) or 0
             if sugar > 15:
                 warnings.append(f"⚠️ High sugar ({sugar:.1f}g) - Monitor blood glucose")
                 if risk_level == "low":
                     risk_level = "medium"
+        
+        # INSTANT NOODLES WARNING - Critical health risks
+        if is_instant_noodles:
+            risk_level = "high"
+            alerts.append("🚨 ULTRA-PROCESSED: Instant noodles are highly processed and unhealthy")
+            alerts.append("⚠️ Contains excessive sodium (often >1500mg per serving)")
+            alerts.append("⚠️ Made with refined flour (maida) - high glycemic index")
+            alerts.append("⚠️ Contains harmful additives like MSG and TBHQ")
+            
+            # Condition-specific warnings for instant noodles
+            if "diabetes" in conditions or "prediabetes" in conditions:
+                alerts.append("❌ AVOID: Refined carbs spike blood sugar - Very dangerous for diabetics")
+            if "hypertension" in conditions or "high_blood_pressure" in conditions:
+                alerts.append("❌ AVOID: Extremely high sodium can worsen blood pressure")
+            if "heart_disease" in conditions or "cardiovascular" in conditions:
+                alerts.append("❌ AVOID: High sodium and saturated fat harm heart health")
+            if "kidney_disease" in conditions or "renal" in conditions:
+                alerts.append("❌ AVOID: High sodium and phosphates stress kidneys")
+            if "obesity" in conditions or user_profile.get("health_goal") == "weight_loss":
+                alerts.append("❌ AVOID: High calories, low nutrition - Hinders weight loss")
+            
+            warnings.append("💡 Replace with: Homemade vegetable soup, whole wheat pasta, or brown rice")
+            warnings.append("💡 If consumed: Add vegetables, eggs, and limit to once per month")
         
         if "hypertension" in conditions or "high_blood_pressure" in conditions:
             sodium = food_data.get("sodium_mg", 0) or 0
@@ -303,8 +354,17 @@ class PersonalizationAgent:
             if protein < 10:
                 warnings.append(f"💡 Low protein ({protein:.1f}g) - Add protein source")
         
-        # Calculate overall health score
-        health_score = calculate_health_score(food_data)
+        # Calculate overall health score (pass product info for instant noodles detection)
+        product_name = food_data.get("product_name", "") or ""
+        brand = food_data.get("brand", "") or ""
+        health_score = calculate_health_score(food_data, product_name, brand)
+        
+        # Additional penalty for instant noodles (in case the function didn't catch it)
+        if is_instant_noodles and health_score > 35:
+            # Force health score to be very low
+            health_score = min(health_score, 30)
+            risk_level = "high"
+            logger.info(f"🚨 Instant noodles detected - Health score capped at {health_score}")
         
         # Determine verdict based on health score and risk level
         # Health Score Ranges:

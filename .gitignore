@@ -1,62 +1,73 @@
-# Flutter/Dart
+# =========================
+# Flutter / Dart
+# =========================
 .dart_tool/
-/.packages
+.packages
 .flutter-plugins
 .flutter-plugins-dependencies
-.packages
 build/
-/.gradle
+.gradle
 **/build/
 **/generated/
 
-# Node
+# Flutter iOS assets
+*/ios/Flutter/Flutter.framework
+*/ios/Flutter/Flutter.podspec
+
+# =========================
+# Node / Next.js
+# =========================
 node_modules/
 npm-debug.log*
 yarn-error.log*
 dist/
+.next/
+out/
 
+# =========================
 # Python
+# =========================
 __pycache__/
 *.py[cod]
 env/
 venv/
 ENV/
 
-# macOS
-.DS_Store
-
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-# IDEs
-.vscode/
-*.iml
-/.idea/
-
-# Logs
-*.log
-
-# Local environment
-.env
-local.properties
-
-# Flutter assets
-*/ios/Flutter/Flutter.framework
-*/ios/Flutter/Flutter.podspec
-
-# Next.js
-.next/
-out/
-
-# Node
-node_modules/
-
-# Environment
+# =========================
+# Environment files
+# =========================
 .env
 .env.local
 .env.production
 .env.development
+local.properties
 
+# =========================
+# Secrets / Keys
+# =========================
+eatsmartly-backend/eatsmartly-vision-key.json
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# =========================
+# IDEs / Editors
+# =========================
+.vscode/
+*.iml
+.idea/
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# Project-specific
+# =========================
 eatsmartly/

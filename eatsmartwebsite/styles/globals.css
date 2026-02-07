@@ -1,13 +1,38 @@
 @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;700;800;900&display=swap');
+/* Poppins - used as closest match to the attached sample (geometric sans) */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Transforma font: place font files in /public/fonts/transforma.woff2 (recommended) */
+/* Sofia Pro (Semi Bold) - put font files in /public/fonts/ if available.
+   If you have the font files, add: public/fonts/SofiaPro-SemiBold.woff2 and .woff
+*/
+@font-face {
+    font-family: 'Sofia Pro';
+    src: url('/fonts/SofiaPro-SemiBold.woff2') format('woff2'),
+        url('/fonts/SofiaPro-SemiBold.woff') format('woff');
+    font-weight: 600 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* Mostardesign placeholder — drop Mostardesign.woff2/woff in public/fonts/ to use */
+@font-face {
+    font-family: 'Mostardesign';
+    src: url('/fonts/Mostardesign.woff2') format('woff2'),
+        url('/fonts/Mostardesign.woff') format('woff');
+    font-weight: 600 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* Transforma font: if you add font files to /public/fonts, update src accordingly.
+   To avoid 404s in development, prefer local fallback or use the Google-hosted Baloo 2.
+*/
 @font-face {
     font-family: 'Transforma';
-    src: url('/fonts/transforma.woff2') format('woff2'),
-        url('/fonts/transforma.woff') format('woff');
+    src: local('Transforma');
     font-weight: 100 900;
     font-style: normal;
     font-display: swap;
@@ -16,6 +41,24 @@
 :root {
     --brand-bg: #ffe9ec;
     --brand-text: #65001e;
+}
+
+/* Upload card: wider on desktop, centered on mobile */
+.upload-card {
+    margin: 0 auto;
+}
+
+@media (min-width: 1024px) {
+    .upload-card {
+        max-width: 1200px;
+        width: calc(100% - 160px);
+    }
+}
+
+@media (max-width: 480px) {
+    .upload-card {
+        padding: 14px;
+    }
 }
 
 html,
@@ -41,7 +84,7 @@ body {
     display: flex;
     gap: 120px;
     position: relative;
-    left: 50%;
+    left: 30%;
     transform: translateX(-50%);
     z-index: 10001;
     margin: 0 auto;
@@ -197,7 +240,8 @@ body {
 }
 
 .heading {
-    font-weight: 800;
+    font-weight: 600;
+    /* Sofia Pro Semi Bold / Mostardesign (semi-bold) */
     line-height: 1;
 }
 
@@ -205,10 +249,12 @@ body {
 .heading {
     position: relative;
     display: inline-block;
-    font-weight: 900;
+    font-weight: 600;
+    /* prefer semi-bold for display */
     line-height: 0.9;
     margin: 0 auto;
-    font-family: 'Transforma', 'Baloo 2', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    /* Font preference: Mostardesign → Sofia Pro → Sofia Pro Semi Bold → fallbacks */
+    font-family: 'Mostardesign', 'Sofia Pro', 'Sofia Pro Semi Bold', 'Transforma', 'Baloo 2', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
 }
 
 .heading-outline,
@@ -276,6 +322,47 @@ body {
     visibility: hidden;
 }
 
+/* Hero text block - clean typography matching attached design */
+.hero-text-block {
+    max-width: 1200px;
+    margin: 0;
+}
+
+.hero-main-text {
+    font-family: 'Poppins', 'Sofia Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: clamp(3.5rem, 10vw, 9rem);
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: #E53A33;
+    margin: 0;
+    text-transform: lowercase;
+}
+
+.hero-main-text em {
+    font-style: italic;
+    font-weight: 400;
+}
+
+/* spacing helpers for staggered words in hero */
+.hero-offset-what {
+    display: inline-block;
+    margin-left: 25rem;
+    /* increased to move 'what' further right */
+}
+
+.hero-offset-eating {
+    display: inline-block;
+    position: relative;
+    left: 9rem;
+    /* visually shift right without reflow/wrapping */
+}
+
+/* Keep each hero line on a single line to avoid wrapping when shifted */
+.hero-main-text span {
+    white-space: nowrap;
+}
+
 /* Top header styles: plain clickable text on #E53A33 background */
 .top-header {
     width: 100%;
@@ -294,7 +381,7 @@ body {
     display: flex;
     gap: 120px;
     position: relative;
-    left: 50%;
+    left: 30%;
     transform: translateX(-50%);
     z-index: 10001;
     margin: 0 auto;
@@ -453,9 +540,200 @@ body {
 }
 
 .hero-bg-video {
-    animation: panRightToLeft 120s linear infinite;
-    will-change: transform;
-    /* Optional blending to reduce visible background — not true background removal */
+    /* Disable pan animation to keep video static and centered */
+    animation: none !important;
+    will-change: auto !important;
+    transform: none !important;
+    object-position: center center !important;
     mix-blend-mode: multiply;
     filter: saturate(0.95) contrast(0.98);
+}
+
+/* What we offer section */
+.what-we-offer {
+    position: relative;
+    color: #fff;
+}
+
+.what-we-offer::before {
+    /* overlay disabled to show the photo directly */
+    content: none;
+}
+
+.what-we-offer>div {
+    position: relative;
+    /* keep content above overlay */
+    z-index: 2;
+}
+
+.what-title {
+    font-family: 'Baloo 2', Inter, sans-serif;
+    color: #E53A33;
+    text-transform: lowercase;
+    font-weight: 800;
+    font-size: clamp(2rem, 4vw, 3rem);
+    margin: 0 0 1.5rem 0;
+}
+
+.offer-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.25rem;
+}
+
+.offer-card {
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 1.25rem;
+    backdrop-filter: blur(4px);
+}
+
+.offer-card h3 {
+    margin: 0 0 0.5rem 0;
+    font-family: 'Baloo 2', Inter, sans-serif;
+    color: #E53A33;
+    font-size: 1.25rem;
+}
+
+.offer-card p {
+    margin: 0;
+    color: #ffffff;
+    opacity: 0.95;
+}
+
+/* Product hero + search styles */
+.product-hero {
+    padding: 2rem 1rem;
+    min-height: 70vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, var(--brand-bg) 0%, #fff7f8 100%);
+}
+
+.product-hero-inner {
+    width: 100%;
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 2rem;
+    box-sizing: border-box;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.product-title {
+    color: #ffffff;
+    background: linear-gradient(90deg, #E53A33 0%, #f35b4f 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-size: clamp(1.8rem, 3.6vw, 2.6rem);
+    font-weight: 800;
+    margin: 0 0 0.25rem 0;
+}
+
+.product-sub {
+    color: #7a1b1b;
+    max-width: 800px;
+    margin: 0 0 1.25rem 0;
+}
+
+.product-search {
+    display: flex;
+    align-items: center;
+    width: min(760px, 100%);
+    background: white;
+    border-radius: 56px;
+    padding: 12px 12px;
+    box-shadow: 0 8px 30px rgba(230, 74, 64, 0.14), 0 2px 8px rgba(0, 0, 0, 0.08);
+    margin-top: 1.2rem;
+}
+
+.product-search-button {
+    height: 44px;
+    width: 44px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #fff 0%, #fff 100%);
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    margin-right: 12px;
+    cursor: pointer;
+    color: #000;
+    /* icon color */
+}
+
+.product-search-input {
+    flex: 1 1 auto;
+    border: none;
+    outline: none;
+    font-size: 1rem;
+    padding: 10px 12px;
+    border-radius: 40px;
+    background: transparent;
+}
+
+.product-filters {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 16px;
+}
+
+.filter-pill {
+    background: #fff;
+    /* same light background as search */
+    color: #E53A33;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-weight: 700;
+    box-shadow: 0 6px 20px rgba(229, 83, 51, 0.06);
+    cursor: pointer;
+}
+
+@media (max-width: 640px) {
+    .product-hero {
+        padding: 2rem 1rem;
+    }
+
+    .product-search {
+        padding: 10px;
+    }
+
+    .product-title {
+        font-size: 1.6rem;
+    }
+}
+
+/* Right-side overlay text on hero video */
+.hero-side-text {
+    position: absolute;
+    right: 6%;
+    top: 65%;
+    /* moved further down */
+    z-index: 10002;
+    pointer-events: none;
+    font-family: 'Mostardesign', 'Sofia Pro', 'Sofia Pro Semi Bold', 'Transforma', 'Baloo 2', Inter, sans-serif;
+    font-weight: 600;
+    color: #E53A33;
+    font-size: clamp(2rem, 6vw, 5rem);
+    line-height: 0.9;
+    text-transform: none;
+    -webkit-font-smoothing: antialiased;
+}
+
+@media (max-width: 768px) {
+    .hero-side-text {
+        right: 4%;
+        top: 60%;
+        /* moved further down on smaller screens */
+        font-size: clamp(1.5rem, 8vw, 2.5rem);
+    }
 }

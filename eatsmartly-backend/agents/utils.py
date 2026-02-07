@@ -232,7 +232,7 @@ def extract_allergens(ingredients: str) -> List[str]:
     return list(set(allergens))
 
 
-def calculate_health_score(nutrition: Dict[str, Any]) -> float:
+def calculate_health_score(nutrition: Dict[str, Any], product_name: str = "", brand: str = "") -> float:
     """
     Calculate health score (0-100) based on evidence-based nutritional guidelines.
     Uses the Nutrient Profiling Model similar to traffic light labeling systems.
@@ -241,15 +241,33 @@ def calculate_health_score(nutrition: Dict[str, Any]) -> float:
     - Start at 100 (perfect score)
     - Deduct points for unhealthy components (sugar, sodium, saturated fat, calories)
     - Add back points for healthy components (protein, fiber)
+    - Severe penalties for ultra-processed foods like instant noodles
     - Final score determines verdict: >70=safe, 40-70=caution, <40=avoid
     
     Args:
         nutrition: Standardized nutrition dictionary
+        product_name: Product name for detecting ultra-processed foods
+        brand: Brand name for detecting ultra-processed foods
         
     Returns:
         Health score (0-100)
     """
     score = 100.0  # Start with perfect score
+    
+    # Detect instant noodles and similar ultra-processed foods
+    product_lower = product_name.lower() if product_name else ""
+    brand_lower = brand.lower() if brand else ""
+    
+    instant_noodle_indicators = [
+        "maggi", "noodles", "instant noodles", "ramen", "2 minute", "top ramen",
+        "yippee", "wai wai", "sunfeast yippee", "knorr instant", "nissin", "indomie",
+        "instant pasta", "cup noodles"
+    ]
+    
+    is_instant_noodles = any(
+        indicator in product_lower or indicator in brand_lower 
+        for indicator in instant_noodle_indicators
+    )
     
     # Extract nutritional values (assume per 100g serving)
     calories = nutrition.get("calories", 0) or 0
@@ -360,6 +378,19 @@ def calculate_health_score(nutrition: Dict[str, Any]) -> float:
     # Exclude if high added sugar (fruits have fiber, soda doesn't)
     if calories < 100 and (fiber >= 2 or protein >= 2) and sugar < 12:
         score += 5  # Nutrient-dense bonus
+    
+    # === CRITICAL PENALTIES FOR ULTRA-PROCESSED FOODS ===
+    
+    # INSTANT NOODLES - Extremely harsh penalty (-70 points minimum)
+    # Maggi, Top Ramen, etc. are ultra-processed with harmful additives
+    if is_instant_noodles:
+        score -= 70  # Massive penalty for instant noodles
+        logger.info(f"🚨 INSTANT NOODLES DETECTED: {product_name or brand} - Applying -70 penalty")
+        # Additional penalties for typical instant noodle characteristics
+        if sodium > 800:
+            score -= 10  # Extra penalty for excessive sodium
+        if fiber < 2:
+            score -= 5   # Extra penalty for no fiber
     
     # CRITICAL: Harsh penalty for sugary beverages
     # Soft drinks have: >8g sugar, <1g protein, <0.5g fiber, <1g fat

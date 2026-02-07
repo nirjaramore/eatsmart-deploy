@@ -42,19 +42,16 @@ class FoodAnalysis {
       alerts: List<String>.from(json['alerts'] ?? []),
       warnings: List<String>.from(json['warnings'] ?? []),
       suggestions: List<String>.from(json['suggestions'] ?? []),
-      alternatives:
-          (json['alternatives'] as List? ?? [])
-              .map((a) => Alternative.fromJson(a))
-              .toList(),
-      recipes:
-          (json['recipes'] as List? ?? [])
-              .map((r) => Recipe.fromJson(r))
-              .toList(),
+      alternatives: (json['alternatives'] as List? ?? [])
+          .map((a) => Alternative.fromJson(a))
+          .toList(),
+      recipes: (json['recipes'] as List? ?? [])
+          .map((r) => Recipe.fromJson(r))
+          .toList(),
       nutritionTips: List<String>.from(json['nutrition_tips'] ?? []),
-      detailedNutrition:
-          json['detailed_nutrition'] != null
-              ? DetailedNutrition.fromJson(json['detailed_nutrition'])
-              : null,
+      detailedNutrition: json['detailed_nutrition'] != null
+          ? DetailedNutrition.fromJson(json['detailed_nutrition'])
+          : null,
       timestamp: json['timestamp'] ?? DateTime.now().toIso8601String(),
     );
   }
@@ -100,6 +97,9 @@ class DetailedNutrition {
   final double? fiberG;
   final String? ingredients;
   final List<String>? allergens;
+  final int? dataSources;
+  final String? dataConfidence;
+  final double? dataVariance;
 
   DetailedNutrition({
     this.servingSize,
@@ -114,6 +114,9 @@ class DetailedNutrition {
     this.fiberG,
     this.ingredients,
     this.allergens,
+    this.dataSources,
+    this.dataConfidence,
+    this.dataVariance,
   });
 
   factory DetailedNutrition.fromJson(Map<String, dynamic> json) {
@@ -129,10 +132,12 @@ class DetailedNutrition {
       sugarG: json['sugar_g']?.toDouble(),
       fiberG: json['fiber_g']?.toDouble(),
       ingredients: json['ingredients'],
-      allergens:
-          json['allergens'] != null
-              ? List<String>.from(json['allergens'])
-              : null,
+      allergens: json['allergens'] != null
+          ? List<String>.from(json['allergens'])
+          : null,
+      dataSources: json['data_sources'],
+      dataConfidence: json['data_confidence'],
+      dataVariance: json['data_variance']?.toDouble(),
     );
   }
 }

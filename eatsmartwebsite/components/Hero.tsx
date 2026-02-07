@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import CircularText from './CircularText'
 
 const Hero: React.FC = () => {
@@ -28,6 +28,7 @@ const Hero: React.FC = () => {
     }
 
     const [activeLabel, setActiveLabel] = useState<string | null>(null)
+    const videoRef = useRef<HTMLVideoElement | null>(null)
 
     return (
         <section className="hero-root relative flex flex-col items-start justify-start" style={{ minHeight: '120vh', background: 'transparent', overflow: 'visible', position: 'relative', zIndex: 9999, paddingBottom: '6rem' }}>
@@ -78,25 +79,28 @@ const Hero: React.FC = () => {
                     </a>
                 </nav>
             </header>
-            {/* Background video (covers full hero area) */}
+            {/* Background video (covers full hero area) - made static (no autoplay/loop). */}
             <video
+                ref={videoRef}
                 className="absolute w-full h-full object-cover pointer-events-none hero-bg-video"
                 src={videoSrc}
                 autoPlay
                 muted
                 loop
                 playsInline
-                style={{ zIndex: 9998, top: 0, left: 0, right: 0, bottom: 0, objectPosition: 'center center', background: 'transparent', outline: 'none', border: 'none' }}
+                preload="metadata"
+                style={{ zIndex: 9998, top: 0, left: 0, right: 0, bottom: 0, objectPosition: '10% center', transform: 'translate(-24px, 120px)', background: 'transparent', outline: 'none', border: 'none' }}
             />
 
-            {/* Overlay content (above the video) */}
-            <div className="w-full pt-20 px-8 relative" style={{ zIndex: 10001 }}>
-                <h1 className="heading mb-2">
-                    {renderWord('Know', 3, 'know', 'outline')}&nbsp;{renderWord('what', 2, 'what', 'outline')}&nbsp;{renderWord('you', 1, 'you', 'outline')}&nbsp;{renderWord('are', 2, 'are', 'outline')}
-                    <br />
-                    {renderWord('eating', 3, 'eating', 'outline')}
-                </h1>
-                <p className="text-sm text-brandText/80 mb-6" style={{ marginLeft: '4px' }}>Together we can make everything better.</p>
+            {/* Overlay content (behind the video) */}
+            <div className="w-full pt-20 px-8 relative" style={{ zIndex: 9997 }}>
+                {/* Clean typography matching attached design */}
+                <div className="hero-text-block">
+                    <h1 className="hero-main-text">
+                        <span style={{ display: 'block' }}>know <span className="hero-offset-what">what</span></span>
+                        <span style={{ display: 'block' }}>you are <span className="hero-offset-eating"><em>eating</em></span></span>
+                    </h1>
+                </div>
             </div>
 
             {/* Curved marquee removed from hero — moved to the next page section */}

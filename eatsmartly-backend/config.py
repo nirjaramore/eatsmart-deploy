@@ -87,6 +87,10 @@ class Settings(BaseSettings):
         default=None,
         description="Supabase service role key (used for storage uploads)"
     )
+    SUPABASE_BUCKET_NAME: str = Field(
+        default="food-images",
+        description="Supabase storage bucket name for food images"
+    )
 
     # OCR.space API Key
     OCR_SPACE_API_KEY: Optional[str] = Field(

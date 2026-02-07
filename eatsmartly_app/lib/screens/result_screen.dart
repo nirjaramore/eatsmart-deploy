@@ -361,6 +361,64 @@ class ResultScreen extends StatelessWidget {
                 ),
               ],
             ),
+            // Data source badge
+            if (nutrition.dataSources != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border:
+                          Border.all(color: AppColors.primary.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.verified,
+                            size: 14, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${nutrition.dataSources}/4 sources',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (nutrition.dataConfidence != null) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _getConfidenceColor(nutrition.dataConfidence!)
+                            .withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color:
+                                _getConfidenceColor(nutrition.dataConfidence!)
+                                    .withOpacity(0.3)),
+                      ),
+                      child: Text(
+                        nutrition.dataConfidence!,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _getConfidenceColor(nutrition.dataConfidence!),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
             if (nutrition.servingSize != null) ...[
               const SizedBox(height: 8),
               Container(
@@ -804,5 +862,18 @@ class ResultScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Color _getConfidenceColor(String confidence) {
+    switch (confidence.toLowerCase()) {
+      case 'high':
+        return AppColors.success;
+      case 'medium':
+        return AppColors.warning;
+      case 'low':
+        return AppColors.error;
+      default:
+        return AppColors.info;
+    }
   }
 }

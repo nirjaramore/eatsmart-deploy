@@ -20,6 +20,8 @@ export default function Home() {
                     <CurvedLoop marqueeText="Join our community" className="curved-loop-text" interactive />
                 </section>
 
+                {/* (Moved) What we offer section will appear after the ScrollPinnedSection below */}
+
                 {/* Third section: Image upload (placed above the auto-zoom gallery) */}
                 <ImageUploadExtract />
 
@@ -28,6 +30,19 @@ export default function Home() {
 
                 {/* Fifth section: Scroll-pinned section with transitioning images */}
                 <ScrollPinnedSection />
+
+                {/* What we offer (background image) - placed after How We Work Together */}
+                <section
+                    aria-label="What we offer"
+                    className="what-we-offer"
+                    style={{
+                        backgroundImage: `url(${encodeURI('/asset/download (33).jpeg')})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        padding: '6rem 0',
+                        minHeight: '360px'
+                    }}
+                />
 
                 {/* Firebase upload removed — using client-side OCR only (ImageUploadExtract) */}
             </main>

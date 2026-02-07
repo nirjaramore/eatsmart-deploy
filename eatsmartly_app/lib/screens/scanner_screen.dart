@@ -49,14 +49,18 @@ class _ScannerScreenState extends State<ScannerScreen> {
     _updateProgress(3, 'Checking global food databases...');
     await Future.delayed(const Duration(milliseconds: 500));
 
-    _updateProgress(4, 'Cross-verifying nutrition data...');
+    _updateProgress(4, 'Querying 4 nutrition sources...');
+    await Future.delayed(const Duration(milliseconds: 500));
 
     try {
+      _updateProgress(
+          4, 'Processing data from backend...\nThis may take 30-60 seconds');
+
       final result = await api.analyzeBarcode(
           barcode: barcode, userId: userId, detailed: true);
 
-      _updateProgress(5, 'Analysis complete!');
-      await Future.delayed(const Duration(milliseconds: 300));
+      _updateProgress(5, 'Analysis complete! ✓');
+      await Future.delayed(const Duration(milliseconds: 500));
 
       if (mounted) {
         // Navigate to results screen

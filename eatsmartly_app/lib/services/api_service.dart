@@ -5,10 +5,11 @@ import '../models/food_analysis.dart';
 
 class EatSmartlyAPI {
   // IMPORTANT: Change this based on your environment
-  // For local testing on physical device: use your PC's IP address
+  // For local testing on physical device: use your PC's IP address (192.168.1.5)
   // For local testing on emulator: use 10.0.2.2
   // For production: use your deployed API URL
-  static const String baseUrl = 'http://192.168.1.4:8000';
+  // Backend is running on port 3000 and includes OpenFoodFacts API integration
+  static const String baseUrl = 'http://192.168.1.5:3000';
 
   // Timeout duration - increased for slow API responses
   static const Duration timeout = Duration(seconds: 60);

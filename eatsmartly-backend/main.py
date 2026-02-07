@@ -51,14 +51,9 @@ app = FastAPI(
 # CORS middleware for Flutter app and Next.js frontend
 app.add_middleware(
     CORSMiddleware,
-    # Allow explicit frontend origins so CORS headers are always reflected correctly
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001"
-    ],
-    allow_credentials=True,
+    # Allow all origins for mobile app development (Flutter doesn't send Origin header)
+    allow_origins=["*"],  # For production, replace with specific origins
+    allow_credentials=False,  # Must be False when using allow_origins=["*"]
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -2009,20 +2004,51 @@ async def save_product_complete(payload: SaveProductCompleteRequest):
 
 
 @app.get('/products')
-async def list_products(limit: int = 50, offset: int = 0):
-    """Return recent products from the `products` table. If DB not configured, return empty list."""
+async def list_products(limit: int = 50, offset: int = 0, region: Optional[str] = None, brand: Optional[str] = None):
+    """Return recent products from the `products` table with optional filters. If DB not configured, return empty list."""
     try:
         if not data_agent or not data_agent.db_engine:
-            return {"products": []}
+            return {"products": [], "total": 0, "regions": [], "brands": []}
 
-        q = text("""
-            SELECT id, barcode, product_name, brand, image_url, created_at, updated_at
+        # Build query with optional filters
+        where_clauses = []
+        params = {"limit": limit, "offset": offset}
+        
+        if region:
+            where_clauses.append("region = :region")
+            params["region"] = region
+        
+        if brand:
+            where_clauses.append("brand ILIKE :brand")
+            params["brand"] = f"%{brand}%"
+        
+        where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+        q = text(f"""
+            SELECT id, barcode, product_name, brand, manufacturer, region, weight, 
+                   fssai_license, image_url, is_verified, created_at, updated_at
             FROM products
+            {where_sql}
             ORDER BY created_at DESC
             LIMIT :limit OFFSET :offset
         """)
+        
+        # Get total count
+        count_q = text(f"""
+            SELECT COUNT(*) FROM products {where_sql}
+        """)
+        
+        # Get unique regions and brands for filters
+        regions_q = text("""
+            SELECT DISTINCT region FROM products WHERE region IS NOT NULL ORDER BY region
+        """)
+        
+        brands_q = text("""
+            SELECT DISTINCT brand FROM products WHERE brand IS NOT NULL ORDER BY brand LIMIT 100
+        """)
+        
         with data_agent.db_engine.connect() as conn:
-            res = conn.execute(q, {"limit": limit, "offset": offset})
+            res = conn.execute(q, params)
             rows = []
             for r in res.fetchall():
                 # SQLAlchemy RowMapping may not be serializable, convert to dict
@@ -2031,11 +2057,89 @@ async def list_products(limit: int = 50, offset: int = 0):
                 except Exception:
                     # Fallback for older SQLAlchemy row tuples
                     rows.append(dict(r))
+            
+            # Get total count
+            total = conn.execute(count_q, {k: v for k, v in params.items() if k not in ['limit', 'offset']}).scalar()
+            
+            # Get filter options
+            regions = [r[0] for r in conn.execute(regions_q).fetchall()]
+            brands = [r[0] for r in conn.execute(brands_q).fetchall()]
 
-        return {"products": rows}
+        return {"products": rows, "total": total or 0, "regions": regions, "brands": brands}
     except Exception as e:
         logger.error(f"list_products error: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@app.get('/food-images')
+async def list_food_images(limit: int = 200, offset: int = 0, image_type: Optional[str] = None):
+    """Return food images from the `food_images` table. 
+    Image URLs should already be complete from Supabase bucket. If DB not configured, return empty list."""
+    try:
+        if not data_agent or not data_agent.db_engine:
+            return {"products": [], "total": 0, "image_types": []}
+
+        # Build query with optional filters
+        where_clauses = ["image_url IS NOT NULL"]
+        params = {"limit": limit, "offset": offset}
+        
+        if image_type:
+            where_clauses.append("image_type = :image_type")
+            params["image_type"] = image_type
+        
+        where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+        # Query food_images table only (no join with foods table for now)
+        q = text(f"""
+            SELECT 
+                id,
+                barcode,
+                image_url,
+                image_type,
+                alt_text,
+                uploaded_at,
+                COALESCE(alt_text, 'Product') as product_name
+            FROM food_images
+            {where_sql}
+            ORDER BY uploaded_at DESC
+            LIMIT :limit OFFSET :offset
+        """)
+        
+        # Get total count
+        count_q = text(f"""
+            SELECT COUNT(*) FROM food_images {where_sql}
+        """)
+        
+        # Get unique image types for filters
+        types_q = text("""
+            SELECT DISTINCT image_type FROM food_images 
+            WHERE image_type IS NOT NULL 
+            ORDER BY image_type
+        """)
+        
+        with data_agent.db_engine.connect() as conn:
+            res = conn.execute(q, params)
+            rows = []
+            for r in res.fetchall():
+                # Convert Row to dict using _mapping attribute
+                row_dict = dict(r._mapping)
+                rows.append(row_dict)
+            
+            # Get total count
+            count_params = {k: v for k, v in params.items() if k not in ['limit', 'offset']}
+            total = conn.execute(count_q, count_params).scalar()
+            
+            # Get filter options
+            image_types = [row[0] for row in conn.execute(types_q).fetchall()]
+
+        logger.info(f"Returning {len(rows)} products from food_images table")
+        return {"products": rows, "total": total or 0, "image_types": image_types}
+    except Exception as e:
+        logger.error(f"list_food_images error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        # Return empty result instead of raising exception to maintain compatibility
+        return {"products": [], "total": 0, "image_types": [], "error": str(e)}
 
 
 # ==================== Run Server ====================
@@ -2045,7 +2149,7 @@ if __name__ == "__main__":
     
     uvicorn.run(
         "main:app",
-        host="127.0.0.1",
+        host="0.0.0.0",  # Allow connections from network (not just localhost)
         port=3000,
         reload=False,  # Disable reload to prevent shutdown issues
         log_level=settings.LOG_LEVEL.lower()

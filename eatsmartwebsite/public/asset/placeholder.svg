@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="placeholder image">
-  <rect width="100%" height="100%" fill="#ffe9ec" />
+  <rect width="100%" height="100%" fill="#fae5e7" />
   <g transform="translate(80,120)">
     <rect x="0" y="0" width="420" height="260" rx="16" fill="#fff" opacity="0.6" />
-    <circle cx="520" cy="120" r="110" fill="#65001e" opacity="0.08" />
+    <circle cx="520" cy="120" r="110" fill="#e27575" opacity="0.08" />
     <g transform="translate(40,40)">
-      <rect x="0" y="0" width="160" height="16" rx="8" fill="#65001e" opacity="0.12" />
-      <rect x="0" y="32" width="240" height="12" rx="6" fill="#65001e" opacity="0.08" />
+      <rect x="0" y="0" width="160" height="16" rx="8" fill="#e27575" opacity="0.12" />
+      <rect x="0" y="32" width="240" height="12" rx="6" fill="#e27575" opacity="0.08" />
     </g>
-    <text x="520" y="400" fill="#65001e" font-family="Inter, Arial, sans-serif" font-size="28">Image placeholder</text>
-    <text x="520" y="430" fill="#65001e" font-family="Inter, Arial, sans-serif" font-size="18" opacity="0.8">Place your JPEG at /public/asset/download (24).jpeg</text>
+    <text x="520" y="400" fill="#e27575" font-family="Inter, Arial, sans-serif" font-size="28">Image placeholder</text>
+    <text x="520" y="430" fill="#e27575" font-family="Inter, Arial, sans-serif" font-size="18" opacity="0.8">Place your JPEG at /public/asset/download (24).jpeg</text>
   </g>
 </svg>

@@ -23,7 +23,9 @@ export default function Home() {
                 {/* (Moved) What we offer section will appear after the ScrollPinnedSection below */}
 
                 {/* Third section: Image upload (placed above the auto-zoom gallery) */}
-                <ImageUploadExtract />
+                <section id="upload-section" aria-label="Upload product">
+                    <ImageUploadExtract />
+                </section>
 
                 {/* Fourth section: GSAP auto-zoom bento gallery */}
                 <AutoZoomGallery />

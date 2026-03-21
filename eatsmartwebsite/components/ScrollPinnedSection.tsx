@@ -39,7 +39,7 @@ export default function ScrollPinnedSection() {
             listItems.forEach((item, i) => {
                 const previousItem = listItems[i - 1]
                 if (previousItem) {
-                    tl.set(item, { color: '#E53A33' }, 0.5 * i)
+                    tl.set(item, { color: '#e27575' }, 0.5 * i)
                         .to(
                             slides[i],
                             {
@@ -48,7 +48,7 @@ export default function ScrollPinnedSection() {
                             },
                             '<'
                         )
-                        .set(previousItem, { color: 'rgba(229, 58, 51, 0.3)' }, '<')
+                        .set(previousItem, { color: 'rgba(226, 117, 117, 0.4)' }, '<')
                         .to(
                             slides[i - 1],
                             {
@@ -58,7 +58,7 @@ export default function ScrollPinnedSection() {
                             '<'
                         )
                 } else {
-                    gsap.set(item, { color: '#E53A33' })
+                    gsap.set(item, { color: '#e27575' })
                     gsap.set(slides[i], { autoAlpha: 1 })
                 }
             })
@@ -138,7 +138,7 @@ export default function ScrollPinnedSection() {
                 }
 
                 .pin-section {
-                    background: #ffe9ec;
+                    background: #fae5e7;
                 }
 
                 .content {
@@ -160,7 +160,7 @@ export default function ScrollPinnedSection() {
 
                 .content ul {
                     font-size: 72px;
-                    color: #E53A33;
+                    color: #e27575;
                     margin: 0;
                     padding: 0;
                     list-style: none;
@@ -174,7 +174,7 @@ export default function ScrollPinnedSection() {
                     left: 40px;
                     width: 6px;
                     height: calc(100% - 80px);
-                    background-color: #E53A33;
+                    background-color: #e27575;
                 }
 
                 .right-side {
@@ -201,7 +201,7 @@ export default function ScrollPinnedSection() {
                     background: #ffffff;
                     padding: 30px;
                     border-radius: 20px;
-                    box-shadow: 0 10px 40px rgba(229, 58, 51, 0.15);
+                    box-shadow: 0 10px 40px rgba(226, 117, 117, 0.2);
                     max-width: 600px;
                     width: 100%;
                 }
@@ -211,7 +211,7 @@ export default function ScrollPinnedSection() {
                     margin: 0;
                     font-family: 'Baloo 2', Inter, sans-serif;
                     font-weight: 700;
-                    color: #E53A33;
+                    color: #e27575;
                     font-size: 2rem;
                     line-height: 1.05;
                 }
@@ -219,7 +219,7 @@ export default function ScrollPinnedSection() {
                 .image-card p {
                     margin: 8px 0 0 0;
                     font-family: 'Baloo 2', Inter, sans-serif;
-                    color: #E53A33;
+                    color: #e27575;
                     font-weight: 400;
                     font-size: 1rem;
                 }

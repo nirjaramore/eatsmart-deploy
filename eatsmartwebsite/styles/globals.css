@@ -39,8 +39,10 @@
 }
 
 :root {
-    --brand-bg: #ffe9ec;
-    --brand-text: #65001e;
+    /* EatSmart color theme */
+    --brand-bg: #fae5e7;
+    --brand-text: #e27575;
+    --brand-text-muted: #eca6a4;
 }
 
 /* Upload card: wider on desktop, centered on mobile */
@@ -69,7 +71,7 @@ body,
 
 body {
     width: 100%;
-    background: var(--brand-bg);
+    background: #fae5e7;
     padding: 8px 24px;
     position: absolute;
     top: 0;
@@ -91,7 +93,7 @@ body {
 }
 
 .top-link {
-    color: #E53A33;
+    color: #e27575;
     text-decoration: none;
     font-weight: 700;
     font-family: 'Baloo 2', Inter, sans-serif;
@@ -130,7 +132,7 @@ body {
     white-space: nowrap;
     transition: transform 1500ms cubic-bezier(.2, .9, .2, 1), opacity 1200ms ease;
     pointer-events: none;
-    color: #E53A33;
+    color: #e27575;
     font-weight: 700;
     font-family: 'Baloo 2', Inter, sans-serif;
     text-decoration: underline;
@@ -156,7 +158,7 @@ body {
     height: 64px;
     position: relative;
     font-weight: 900;
-    color: #E53A33;
+    color: #e27575;
     text-align: center;
     cursor: pointer;
     transform-origin: 50% 50%;
@@ -216,7 +218,7 @@ body {
 }
 
 .top-brand {
-    color: #E53A33;
+    color: #e27575;
     font-family: 'Baloo 2', Inter, sans-serif;
     font-weight: 700;
     font-size: 1rem;
@@ -228,7 +230,7 @@ body {
 }
 
 .top-brand {
-    color: #E53A33;
+    color: #e27575;
     font-family: 'Baloo 2', Inter, sans-serif;
     font-weight: 700;
     font-size: 1rem;
@@ -267,8 +269,8 @@ body {
 
 .heading-outline {
     color: transparent;
-    -webkit-text-stroke: 8px #E53A33;
-    text-stroke: 8px #E53A33;
+    -webkit-text-stroke: 8px #e27575;
+    text-stroke: 8px #e27575;
     transform: translateY(4px);
 }
 
@@ -307,15 +309,15 @@ body {
 
 /* Individual letter styling */
 .letter-filled {
-    color: #E53A33;
+    color: #e27575;
     -webkit-text-stroke: 0;
     text-stroke: 0;
 }
 
 .letter-outline {
     color: transparent;
-    -webkit-text-stroke: 8px #E53A33;
-    text-stroke: 8px #E53A33;
+    -webkit-text-stroke: 8px #e27575;
+    text-stroke: 8px #e27575;
 }
 
 .letter-empty {
@@ -334,7 +336,7 @@ body {
     font-weight: 400;
     line-height: 1.1;
     letter-spacing: -0.02em;
-    color: #E53A33;
+    color: #e27575;
     margin: 0;
     text-transform: lowercase;
 }
@@ -363,44 +365,81 @@ body {
     white-space: nowrap;
 }
 
-/* Top header styles: plain clickable text on #E53A33 background */
+/* Shared site header */
 .top-header {
-    width: 100%;
-    background: var(--brand-bg);
-    padding: 8px 16px;
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
+    width: min(1200px, 100%);
+    margin: 0 auto;
+    background: transparent;
+    padding: 14px 24px;
+    margin-bottom: 18px;
+    box-sizing: border-box;
+    position: relative;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+    border-bottom: none;
+    z-index: 11000;
 }
 
 .top-nav {
     display: flex;
-    gap: 120px;
-    position: relative;
-    left: 30%;
+    gap: 18px;
+    align-items: center;
+    margin: 0;
+    position: absolute;
+    left: 50%;
     transform: translateX(-50%);
-    z-index: 10001;
-    margin: 0 auto;
 }
 
 .top-link {
-    color: #E53A33;
+    color: #e27575;
     text-decoration: none;
-    font-weight: 700;
-    font-family: 'Baloo 2', Inter, sans-serif;
+    font-weight: 600;
+    font-family: 'Poppins', Inter, sans-serif;
     padding: 6px 10px;
     cursor: pointer;
+    border-radius: 999px;
+    transition: background 0.2s ease, color 0.2s ease;
 }
 
 .top-link:hover {
-    text-decoration: underline;
+    text-decoration: none;
+    background: rgba(236, 166, 164, 0.3);
+    color: #e27575;
+}
+
+.top-link.active {
+    background: rgba(236, 166, 164, 0.3);
+    color: #e27575;
+}
+
+.top-brand {
+    display: inline-flex;
+    align-items: center;
+    min-width: 180px;
+    font-family: 'Poppins', Inter, sans-serif;
+    font-weight: 700;
+    color: #e27575;
 }
 
 @media (max-width: 640px) {
+
+    .top-header {
+        padding: 10px 12px;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .top-nav {
+        position: static;
+        left: auto;
+        transform: none;
+        width: 100%;
+        justify-content: flex-start;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
 
     .heading-outline,
     .heading-fill {
@@ -495,7 +534,7 @@ body {
     overflow: visible;
     display: block;
     font-size: clamp(1.5rem, 4vw, 3rem);
-    fill: #65001e;
+    fill: #e27575;
     font-weight: 700;
     text-transform: none;
     line-height: 1;
@@ -503,7 +542,7 @@ body {
 
 /* small helper class for text styling */
 .curved-loop-text {
-    fill: #E53A33;
+    fill: #e27575;
     font-weight: 800;
 }
 
@@ -568,7 +607,7 @@ body {
 
 .what-title {
     font-family: 'Baloo 2', Inter, sans-serif;
-    color: #E53A33;
+    color: #e27575;
     text-transform: lowercase;
     font-weight: 800;
     font-size: clamp(2rem, 4vw, 3rem);
@@ -591,7 +630,7 @@ body {
 .offer-card h3 {
     margin: 0 0 0.5rem 0;
     font-family: 'Baloo 2', Inter, sans-serif;
-    color: #E53A33;
+    color: #e27575;
     font-size: 1.25rem;
 }
 
@@ -608,7 +647,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(180deg, var(--brand-bg) 0%, #fff7f8 100%);
+    background: linear-gradient(180deg, var(--brand-bg) 0%, #fae5e7 100%);
 }
 
 .product-hero-inner {
@@ -626,7 +665,7 @@ body {
 
 .product-title {
     color: #ffffff;
-    background: linear-gradient(90deg, #E53A33 0%, #f35b4f 100%);
+    background: linear-gradient(90deg, #e27575 0%, #eca6a4 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -636,7 +675,7 @@ body {
 }
 
 .product-sub {
-    color: #7a1b1b;
+    color: #eca6a4;
     max-width: 800px;
     margin: 0 0 1.25rem 0;
 }
@@ -648,7 +687,7 @@ body {
     background: white;
     border-radius: 56px;
     padding: 12px 12px;
-    box-shadow: 0 8px 30px rgba(230, 74, 64, 0.14), 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 8px 30px rgba(226, 117, 117, 0.2), 0 2px 8px rgba(0, 0, 0, 0.08);
     margin-top: 1.2rem;
 }
 
@@ -689,12 +728,12 @@ body {
 .filter-pill {
     background: #fff;
     /* same light background as search */
-    color: #E53A33;
+    color: #e27575;
     border: none;
     padding: 8px 14px;
     border-radius: 999px;
     font-weight: 700;
-    box-shadow: 0 6px 20px rgba(229, 83, 51, 0.06);
+    box-shadow: 0 6px 20px rgba(226, 117, 117, 0.15);
     cursor: pointer;
 }
 
@@ -722,7 +761,7 @@ body {
     pointer-events: none;
     font-family: 'Mostardesign', 'Sofia Pro', 'Sofia Pro Semi Bold', 'Transforma', 'Baloo 2', Inter, sans-serif;
     font-weight: 600;
-    color: #E53A33;
+    color: #e27575;
     font-size: clamp(2rem, 6vw, 5rem);
     line-height: 0.9;
     text-transform: none;

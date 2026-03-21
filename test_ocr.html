@@ -16,7 +16,7 @@
             formData.append('file', file);
 
             try {
-                const response = await fetch('http://localhost:8000/extract-text', {
+                const response = await fetch('http://localhost:3000/extract-text', {
                     method: 'POST',
                     body: formData
                 });

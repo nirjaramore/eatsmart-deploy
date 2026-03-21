@@ -1,4 +1,5 @@
 import Head from 'next/head'
+import SiteHeader from '../components/SiteHeader'
 
 export default function About() {
     return (
@@ -7,31 +8,12 @@ export default function About() {
                 <title>About Us - EatSmart</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
             </Head>
-            <main style={{ background: 'var(--brand-bg)', color: '#E53A33', minHeight: '100vh', width: '100vw', position: 'absolute', top: 0, left: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: '64px' }}>
-                {/* Top header similar to Hero */}
-                <header className="top-header" role="banner" style={{ zIndex: 11000 }}>
-                    <div className="top-brand">
-                        eatsmart
-                    </div>
-                    <nav className="top-nav">
-                        <a href="/" className="top-link" data-text="Home">
-                            <span className="link-inner">Home</span>
-                        </a>
-                        <a href="/about" className="top-link active" data-text="About Us">
-                            <span className="link-inner">About Us</span>
-                        </a>
-                        <a href="#" className="top-link" data-text="Community">
-                            <span className="link-inner">Community</span>
-                        </a>
-                        <a href="/product" className="top-link" data-text="Product">
-                            <span className="link-inner">Product</span>
-                        </a>
-                    </nav>
-                </header>
+            <main style={{ background: 'var(--brand-bg)', color: '#eca6a4', minHeight: '100vh', paddingBottom: '48px' }}>
+                <SiteHeader active="about" />
 
-                {/* About content */}
-                <div style={{ width: 'min(900px, 90vw)', maxWidth: '900px', fontFamily: "'Baloo 2', Inter, sans-serif", lineHeight: 1.6, textAlign: 'justify' }}>
-                    <p style={{ fontSize: '2.5rem', marginBottom: '1rem', fontWeight: 'bold', textAlign: 'center' }}>
+                <section style={{ maxWidth: '1100px', margin: '0 auto', padding: '96px 24px 0' }}>
+                    <div style={{ width: '100%', maxWidth: '900px', margin: '0 auto', fontFamily: "'Baloo 2', Inter, sans-serif", lineHeight: 1.6, textAlign: 'justify' }}>
+                    <p style={{ fontSize: '2.5rem', marginBottom: '1rem', fontWeight: 'bold', textAlign: 'center', color: '#e27575' }}>
                         ever stared at a food label and felt... nothing?<br />
                         same. we did too.
                     </p>
@@ -41,11 +23,11 @@ export default function About() {
                     <p style={{ marginBottom: '1rem' }}>
                         the problem? labels can be misleading even with strict FSSAI norms—"sugar-free" loaded with fats, "real fruit" juices with 10% actual fruit. most of us find nutrition info either too confusing or too cramped.
                     </p>
-                    <p style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '1rem' }}>
+                    <p style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '1rem', color: '#e27575' }}>
                         so we're building something different.
                     </p>
 
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem' }}>what we're doing</h2>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#e27575' }}>what we're doing</h2>
                     <p style={{ marginBottom: '1rem' }}>
                         eatsmartly is a community fixing India's nutrition information gap—one product at a time.
                     </p>
@@ -56,7 +38,7 @@ export default function About() {
                         but here's the thing: we need you.
                     </p>
 
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem' }}>how you help</h2>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#e27575' }}>how you help</h2>
                     <p style={{ marginBottom: '1rem' }}>
                         spot a healthy product? upload one pic. literally just one.
                     </p>
@@ -85,17 +67,18 @@ export default function About() {
                         no BS. no hidden sugars marketed as "health drinks." just real data, real choices.
                     </p>
 
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem' }}>join the build</h2>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#e27575' }}>join the build</h2>
                     <p style={{ marginBottom: '1rem' }}>
                         this only works if we're in it together.
                     </p>
                     <p style={{ marginBottom: '1rem' }}>
                         upload. share. spread the word.
                     </p>
-                    <p style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>
+                    <p style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#e27575' }}>
                         because knowing what you're eating shouldn't require a chemistry degree.
                     </p>
-                </div>
+                    </div>
+                </section>
             </main>
         </>
     )

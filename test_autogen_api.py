@@ -7,7 +7,7 @@ print("="*60 + "\n")
 
 try:
     response = requests.post(
-        'http://localhost:8000/analyze-barcode',
+        'http://localhost:3000/analyze-barcode',
         json={
             'barcode': '3017620422003',
             'user_id': 'test',

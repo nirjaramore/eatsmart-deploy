@@ -1,316 +1,420 @@
 import Head from 'next/head'
 import { useState, useEffect } from 'react'
 import ProductCard from '../components/ProductCard'
+import SiteHeader from '../components/SiteHeader'
 import styles from '../styles/ProductsPage.module.css'
 
+/* ===============================
+   API BASE URL (IMPORTANT FIX)
+   =============================== */
+const DEFAULT_API_BASE_URL = 'http://localhost:8007'
+const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL
+).replace(/\/$/, '')
+const SUPABASE_PUBLIC_URL = 'https://reqfxmbjbfzhxvufrpsr.supabase.co'
+const API_CANDIDATE_BASES = Array.from(
+  new Set([
+    API_BASE_URL,
+    'http://localhost:8007',
+    'http://localhost:8004',
+    'http://localhost:8003',
+    'http://localhost:8002',
+    'http://localhost:8001',
+    'http://localhost:8000',
+  ])
+)
+
+/* ===============================
+   MANUAL SUPABASE IMAGE MAPPING
+   =============================== */
+const MANUAL_IMAGE_MAP: Record<string, string> = {
+  '8901063090637':
+    'https://reqfxmbjbfzhxvufrpsr.supabase.co/storage/v1/object/public/eatsmart/Britannia%20Nutrichoice%20Digestive%20Zero_front.webp',
+}
+
+/* ===============================
+   TYPES
+   =============================== */
 type ProductItem = {
-    id: string
-    barcode?: string
-    product_name: string
-    brand?: string
-    manufacturer?: string
-    region?: string
-    weight?: string
-    fssai_license?: string
-    image_url?: string
-    is_verified?: boolean
-    created_at?: string
+  id: string
+  barcode?: string
+  product_name: string
+  brand?: string
+  image_type?: string
+  manufacturer?: string
+  region?: string
+  weight?: string
+  fssai_license?: string
+  image_url?: string
+  is_verified?: boolean
+  created_at?: string
+  uploaded_at?: string
 }
 
 type ProductsResponse = {
-    products: ProductItem[]
-    total: number
-    regions: string[]
-    brands: string[]
+  products: ProductItem[]
+  total: number
+  regions?: string[]
+  brands?: string[]
 }
 
 export default function Product() {
-    const [query, setQuery] = useState('')
-    const [products, setProducts] = useState<ProductItem[]>([])
-    const [filteredProducts, setFilteredProducts] = useState<ProductItem[]>([])
-    const [loading, setLoading] = useState(true)
-    const [selectedRegion, setSelectedRegion] = useState<string>('')
-    const [selectedBrand, setSelectedBrand] = useState<string>('')
-    const [regions, setRegions] = useState<string[]>([])
-    const [brands, setBrands] = useState<string[]>([])
-    const [total, setTotal] = useState(0)
+  const [query, setQuery] = useState('')
+  const [products, setProducts] = useState<ProductItem[]>([])
+  const [filteredProducts, setFilteredProducts] = useState<ProductItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [total, setTotal] = useState(0)
+  const [brandFilter, setBrandFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [verifiedFilter, setVerifiedFilter] = useState<'all' | 'verified' | 'unverified'>('all')
+  const [sortBy, setSortBy] = useState<'newest' | 'az' | 'relevant'>('newest')
 
-    useEffect(() => {
-        fetchProducts()
-    }, [])
+  useEffect(() => {
+    fetchProducts()
+  }, [])
 
-    useEffect(() => {
-        // Filter products by search query
-        if (!query.trim() && !selectedRegion && !selectedBrand) {
-            setFilteredProducts(products)
-        } else {
-            let filtered = [...products]
+  useEffect(() => {
+    let filtered = [...products]
+    const lowerQuery = query.trim().toLowerCase()
 
-            // Apply search query filter
-            if (query.trim()) {
-                const lowerQuery = query.toLowerCase()
-                filtered = filtered.filter(p =>
-                    p.product_name?.toLowerCase().includes(lowerQuery) ||
-                    p.brand?.toLowerCase().includes(lowerQuery) ||
-                    p.barcode?.includes(query)
-                )
-            }
-
-            // Apply region filter
-            if (selectedRegion) {
-                filtered = filtered.filter(p => p.region === selectedRegion)
-            }
-
-            // Apply brand filter
-            if (selectedBrand) {
-                filtered = filtered.filter(p =>
-                    p.brand?.toLowerCase().includes(selectedBrand.toLowerCase())
-                )
-            }
-
-            setFilteredProducts(filtered)
-        }
-    }, [query, products, selectedRegion, selectedBrand])
-
-    const fetchProducts = async () => {
-        setLoading(true)
-        try {
-            // Fetch from food_images table (Supabase data with bucket URLs)
-            console.log('Fetching from /food-images endpoint...')
-            let url = 'http://localhost:3000/food-images?limit=200'
-
-            const res = await fetch(url)
-            console.log('Response status:', res.status)
-
-            if (res.ok) {
-                const data: ProductsResponse = await res.json()
-                console.log('Received data:', data)
-                console.log(`Found ${data.products?.length || 0} products`)
-
-                if (data.products && data.products.length > 0) {
-                    setProducts(data.products)
-                    setFilteredProducts(data.products)
-                    setTotal(data.total || 0)
-
-                    // Extract unique regions and brands from the data
-                    const uniqueRegions = [...new Set(data.products.map(p => p.region).filter(Boolean))] as string[]
-                    const uniqueBrands = [...new Set(data.products.map(p => p.brand).filter(Boolean))] as string[]
-                    setRegions(uniqueRegions)
-                    setBrands(uniqueBrands)
-
-                    console.log('Products loaded successfully!')
-                } else {
-                    console.log('No products in food_images, trying fallback...')
-                    // Fallback to products table
-                    await fetchFromProductsTable()
-                }
-            } else {
-                console.error('Failed to fetch from /food-images:', res.statusText)
-                await fetchFromProductsTable()
-            }
-        } catch (e) {
-            console.error('Error fetching from food_images:', e)
-            await fetchFromProductsTable()
-        } finally {
-            setLoading(false)
-        }
+    if (lowerQuery) {
+      filtered = filtered.filter(
+        p =>
+          p.product_name?.toLowerCase().includes(lowerQuery) ||
+          p.brand?.toLowerCase().includes(lowerQuery) ||
+          p.barcode?.includes(query)
+      )
     }
 
-    const fetchFromProductsTable = async () => {
-        try {
-            let url = 'http://localhost:3000/products?limit=100'
-            if (selectedRegion) url += `&region=${encodeURIComponent(selectedRegion)}`
-            if (selectedBrand) url += `&brand=${encodeURIComponent(selectedBrand)}`
+    if (brandFilter !== 'all') {
+      filtered = filtered.filter(
+        p => (p.brand || 'unknown').toLowerCase() === brandFilter
+      )
+    }
 
-            const res = await fetch(url)
-            if (res.ok) {
-                const data: ProductsResponse = await res.json()
-                setProducts(data.products || [])
-                setFilteredProducts(data.products || [])
-                setTotal(data.total || 0)
-                setRegions(data.regions || [])
-                setBrands(data.brands || [])
-            } else {
-                // Fallback to localStorage
-                const stored = JSON.parse(localStorage.getItem('eatsmart_products') || '[]')
-                const mapped = stored.map((s: any) => ({
-                    id: s.id,
-                    product_name: s.name,
-                    image_url: s.url
-                }))
-                setProducts(mapped)
-                setFilteredProducts(mapped)
-            }
-        } catch (e) {
-            console.error('Failed to fetch products:', e)
-            // Fallback to localStorage
-            const stored = JSON.parse(localStorage.getItem('eatsmart_products') || '[]')
-            const mapped = stored.map((s: any) => ({
-                id: s.id,
-                product_name: s.name,
-                image_url: s.url
-            }))
-            setProducts(mapped)
-            setFilteredProducts(mapped)
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter(p => getDisplayType(p) === typeFilter)
+    }
+
+    if (verifiedFilter !== 'all') {
+      const shouldBeVerified = verifiedFilter === 'verified'
+      filtered = filtered.filter(p => Boolean(p.is_verified) === shouldBeVerified)
+    }
+
+    filtered.sort((a, b) => {
+      if (sortBy === 'az') {
+        return (a.product_name || '').localeCompare(b.product_name || '')
+      }
+
+      if (sortBy === 'relevant') {
+        const score = (p: ProductItem) => {
+          if (!lowerQuery) return 0
+          const name = (p.product_name || '').toLowerCase()
+          const brand = (p.brand || '').toLowerCase()
+          if (name.startsWith(lowerQuery)) return 3
+          if (name.includes(lowerQuery)) return 2
+          if (brand.includes(lowerQuery)) return 1
+          return 0
         }
+        return score(b) - score(a)
+      }
+
+      const ad = new Date(a.uploaded_at || a.created_at || 0).getTime()
+      const bd = new Date(b.uploaded_at || b.created_at || 0).getTime()
+      return bd - ad
+    })
+
+    setFilteredProducts(filtered)
+  }, [query, products, brandFilter, typeFilter, verifiedFilter, sortBy])
+
+  const uniqueBrands = Array.from(
+    new Set(products.map(p => (p.brand || 'unknown').toLowerCase()))
+  ).sort((a, b) => a.localeCompare(b))
+
+  const getDisplayType = (product: ProductItem) => {
+    const rawType = (product.image_type || '').toLowerCase()
+    if (rawType === 'front' || rawType === 'back') return rawType
+
+    const name = (product.product_name || '').toLowerCase()
+    const imageUrl = (product.image_url || '').toLowerCase()
+    const combined = `${name} ${imageUrl}`
+
+    if (combined.includes('_back') || combined.includes(' back')) return 'back'
+    if (combined.includes('_front') || combined.includes(' front')) return 'front'
+    if (rawType) return rawType
+    return 'unknown'
+  }
+
+  const uniqueTypes = Array.from(
+    new Set(products.map(getDisplayType))
+  ).sort((a, b) => a.localeCompare(b))
+
+  /* ===============================
+     FETCH PRODUCTS
+     =============================== */
+  const fetchProducts = async () => {
+    setLoading(true)
+
+    try {
+      for (const baseUrl of API_CANDIDATE_BASES) {
+        const res = await fetch(`${baseUrl}/food-images?limit=200`)
+
+        if (res.ok) {
+          const data: ProductsResponse = await res.json()
+
+          if (data.products?.length) {
+            const enriched = await keepLoadableImages(attachManualImages(data.products))
+            setProducts(enriched)
+            setFilteredProducts(enriched)
+            setTotal(data.total || 0)
+
+            return
+          }
+        }
+      }
+
+      await fetchFromProductsTable()
+    } catch (err) {
+      console.error('Primary fetch failed', err)
+      await fetchFromProductsTable()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  /* ===============================
+     FALLBACK FETCH
+     =============================== */
+  const fetchFromProductsTable = async () => {
+    for (const baseUrl of API_CANDIDATE_BASES) {
+      try {
+        const res = await fetch(`${baseUrl}/products?limit=100`)
+
+        if (res.ok) {
+          const data: ProductsResponse = await res.json()
+          const enriched = await keepLoadableImages(
+            attachManualImages(data.products || [])
+          )
+
+          setProducts(enriched)
+          setFilteredProducts(enriched)
+          setTotal(data.total || 0)
+          return
+        }
+      } catch (err) {
+        console.error(`Secondary fetch failed for ${baseUrl}`, err)
+      }
     }
 
-    const clearFilters = () => {
-        setSelectedRegion('')
-        setSelectedBrand('')
-        setQuery('')
-    }
-
-    const hasActiveFilters = selectedRegion || selectedBrand || query
-
-    return (
-        <>
-            <Head>
-                <title>Products - EatSmart</title>
-                <meta name="description" content="Browse our curated list of India-friendly packaged products with nutrition details" />
-                <meta name="viewport" content="width=device-width, initial-scale=1" />
-            </Head>
-
-            <main className={styles.productsMain}>
-                {/* Hero Section */}
-                <section className={styles.productsHero}>
-                    <div className={styles.heroContent}>
-                        <h1 className={styles.heroTitle}>
-                            Discover Healthy Products
-                        </h1>
-                        <p className={styles.heroSubtitle}>
-                            Browse through our curated collection of {total} verified food products from across India
-                        </p>
-
-                        {/* Search Bar */}
-                        <form className={styles.searchForm} onSubmit={(e) => e.preventDefault()} role="search">
-                            <div className={styles.searchWrapper}>
-                                <svg className={styles.searchIcon} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
-                                    <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                </svg>
-                                <input
-                                    className={styles.searchInput}
-                                    placeholder="Search by product name, brand, or barcode..."
-                                    value={query}
-                                    onChange={(e) => setQuery(e.target.value)}
-                                    aria-label="Search products"
-                                />
-                                {query && (
-                                    <button
-                                        type="button"
-                                        className={styles.clearSearchBtn}
-                                        onClick={() => setQuery('')}
-                                        aria-label="Clear search"
-                                    >
-                                        ×
-                                    </button>
-                                )}
-                            </div>
-                        </form>
-                    </div>
-                </section>
-
-                {/* Filters Section */}
-                <section className={styles.filtersSection}>
-                    <div className={styles.filtersContainer}>
-                        <div className={styles.filtersHeader}>
-                            <h2 className={styles.filtersTitle}>Filter Products</h2>
-                            {hasActiveFilters && (
-                                <button
-                                    className={styles.clearFiltersBtn}
-                                    onClick={clearFilters}
-                                >
-                                    Clear All Filters
-                                </button>
-                            )}
-                        </div>
-
-                        <div className={styles.filterControls}>
-                            {/* Region Filter */}
-                            <div className={styles.filterGroup}>
-                                <label htmlFor="region-filter" className={styles.filterLabel}>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                        <circle cx="12" cy="9" r="2.5" stroke="currentColor" strokeWidth="2" />
-                                    </svg>
-                                    Region
-                                </label>
-                                <select
-                                    id="region-filter"
-                                    className={styles.filterSelect}
-                                    value={selectedRegion}
-                                    onChange={(e) => setSelectedRegion(e.target.value)}
-                                >
-                                    <option value="">All Regions</option>
-                                    {regions.map(region => (
-                                        <option key={region} value={region}>{region}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Brand Filter */}
-                            <div className={styles.filterGroup}>
-                                <label htmlFor="brand-filter" className={styles.filterLabel}>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M20 7h-4V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                    Brand
-                                </label>
-                                <select
-                                    id="brand-filter"
-                                    className={styles.filterSelect}
-                                    value={selectedBrand}
-                                    onChange={(e) => setSelectedBrand(e.target.value)}
-                                >
-                                    <option value="">All Brands</option>
-                                    {brands.slice(0, 50).map(brand => (
-                                        <option key={brand} value={brand}>{brand}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        {/* Results Count */}
-                        <div className={styles.resultsInfo}>
-                            Showing <strong>{filteredProducts.length}</strong> {filteredProducts.length === 1 ? 'product' : 'products'}
-                            {hasActiveFilters && <> matching your filters</>}
-                        </div>
-                    </div>
-                </section>
-
-                {/* Products Grid */}
-                <section className={styles.productsSection}>
-                    <div className={styles.productsContainer}>
-                        {loading ? (
-                            <div className={styles.loadingState}>
-                                <div className={styles.spinner}></div>
-                                <p>Loading delicious products...</p>
-                            </div>
-                        ) : filteredProducts.length === 0 ? (
-                            <div className={styles.emptyState}>
-                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <circle cx="12" cy="12" r="10" stroke="#E53A33" strokeWidth="2" opacity="0.3" />
-                                    <path d="M12 8v4M12 16h.01" stroke="#E53A33" strokeWidth="2" strokeLinecap="round" />
-                                </svg>
-                                <h3>No products found</h3>
-                                <p>Try adjusting your filters or search query</p>
-                                {hasActiveFilters && (
-                                    <button className={styles.clearFiltersBtn} onClick={clearFilters}>
-                                        Clear All Filters
-                                    </button>
-                                )}
-                            </div>
-                        ) : (
-                            <div className={styles.productsGrid}>
-                                {filteredProducts.map((product) => (
-                                    <ProductCard key={product.id} {...product} />
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </section>
-            </main>
-        </>
+    // 🔁 LocalStorage fallback
+    const stored = JSON.parse(
+      localStorage.getItem('eatsmart_products') || '[]'
     )
+
+    const mapped = attachManualImages(
+      stored.map((s: any) => ({
+        id: s.id,
+        product_name: s.name,
+        barcode: s.barcode,
+        image_url: s.url,
+      }))
+    )
+
+    setProducts(mapped)
+    setFilteredProducts(mapped)
+  }
+
+  /* ===============================
+     IMAGE URL FIX
+     =============================== */
+  const normalizeImageUrl = (rawImageUrl?: string) => {
+    if (!rawImageUrl) return undefined
+    const trimmed = rawImageUrl.trim()
+    if (!trimmed) return undefined
+
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return encodeURI(trimmed)
+    }
+
+    if (trimmed.startsWith('//')) {
+      return encodeURI(`https:${trimmed}`)
+    }
+
+    if (trimmed.startsWith('/storage/v1/object/public/')) {
+      return encodeURI(`${SUPABASE_PUBLIC_URL}${trimmed}`)
+    }
+
+    if (trimmed.startsWith('storage/v1/object/public/')) {
+      return encodeURI(`${SUPABASE_PUBLIC_URL}/${trimmed}`)
+    }
+
+    if (trimmed.startsWith('/static/') || trimmed.startsWith('static/')) {
+      const resolved = trimmed.startsWith('/')
+        ? `${API_BASE_URL}${trimmed}`
+        : `${API_BASE_URL}/${trimmed}`
+      return encodeURI(resolved)
+    }
+
+    return encodeURI(trimmed)
+  }
+
+  const isImageLoadable = (url: string) =>
+    new Promise<boolean>(resolve => {
+      const img = new Image()
+      const timeout = globalThis.setTimeout(() => resolve(false), 5000)
+      img.onload = () => {
+        globalThis.clearTimeout(timeout)
+        resolve(true)
+      }
+      img.onerror = () => {
+        globalThis.clearTimeout(timeout)
+        resolve(false)
+      }
+      img.src = url
+    })
+
+  const keepLoadableImages = async (items: ProductItem[]) => {
+    const checks = await Promise.all(
+      items.map(async item => {
+        if (!item.image_url) return false
+        return isImageLoadable(item.image_url)
+      })
+    )
+
+    return items.filter((_, idx) => checks[idx])
+  }
+
+  const attachManualImages = (items: ProductItem[]) => {
+    return items.map(product => {
+      const rawImageUrl =
+        product.image_url ||
+        (product.barcode ? MANUAL_IMAGE_MAP[product.barcode] : undefined)
+
+      return {
+        ...product,
+        image_url: normalizeImageUrl(rawImageUrl),
+      }
+    })
+  }
+
+  return (
+    <>
+      <Head>
+        <title>Products - EatSmart</title>
+        <meta
+          name="description"
+          content="Browse healthy packaged food products"
+        />
+      </Head>
+
+      <main className={styles.productsMain}>
+        <SiteHeader active="product" />
+
+        <section className={styles.productsHero}>
+          <div className={styles.pageContainer}>
+            <div className={styles.heroContent}>
+              <h1 className={styles.heroTitle}>Discover Healthy Products</h1>
+              <p className={styles.heroSubtitle}>
+                Browse {total} verified food products
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.controlsSection}>
+          <div className={styles.pageContainer}>
+            <div className={styles.controlBar}>
+              <input
+                className={styles.searchInput}
+                placeholder="Search by product, brand, or barcode..."
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+              />
+
+              <select
+                className={styles.controlSelect}
+                value={brandFilter}
+                onChange={e => setBrandFilter(e.target.value)}
+                aria-label="Filter by brand"
+              >
+                <option value="all">All Brands</option>
+                {uniqueBrands.map(brand => (
+                  <option key={brand} value={brand}>
+                    {brand === 'unknown' ? 'Unknown Brand' : brand}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                className={styles.controlSelect}
+                value={typeFilter}
+                onChange={e => setTypeFilter(e.target.value)}
+                aria-label="Filter by type"
+              >
+                <option value="all">All Types</option>
+                {uniqueTypes.map(type => (
+                  <option key={type} value={type}>
+                    {type === 'unknown' ? 'Unknown Type' : type}
+                  </option>
+                ))}
+              </select>
+
+              <div className={styles.chipGroup}>
+                <button
+                  type="button"
+                  className={`${styles.chip} ${verifiedFilter === 'all' ? styles.chipActive : ''}`}
+                  onClick={() => setVerifiedFilter('all')}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.chip} ${verifiedFilter === 'verified' ? styles.chipActive : ''}`}
+                  onClick={() => setVerifiedFilter('verified')}
+                >
+                  Verified
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.chip} ${verifiedFilter === 'unverified' ? styles.chipActive : ''}`}
+                  onClick={() => setVerifiedFilter('unverified')}
+                >
+                  Unverified
+                </button>
+              </div>
+
+              <select
+                className={styles.controlSelect}
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as 'newest' | 'az' | 'relevant')}
+                aria-label="Sort products"
+              >
+                <option value="newest">Newest</option>
+                <option value="az">A-Z</option>
+                <option value="relevant">Most Relevant</option>
+              </select>
+            </div>
+
+            <p className={styles.resultCount}>
+              Showing {filteredProducts.length} of {products.length} products
+            </p>
+          </div>
+        </section>
+
+        <section className={styles.productsSection}>
+          <div className={styles.pageContainer}>
+            {loading ? (
+              <p>Loading products...</p>
+            ) : (
+              <div className={styles.productsGrid}>
+                {filteredProducts.map(product => (
+                  <ProductCard key={product.id} {...product} />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      </main>
+    </>
+  )
 }

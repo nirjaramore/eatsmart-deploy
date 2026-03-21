@@ -52,7 +52,7 @@ export default function FirebaseUploader() {
                     {productDocs.map((d) => (
                         <div key={d.id} style={{ padding: 8, border: '1px solid #eee', borderRadius: 8, marginBottom: 8 }}>
                             <div><strong>{d.product?.product_name || d.fileName || 'Unnamed'}</strong></div>
-                            <div style={{ fontSize: 13, color: '#666' }}>{d.source}</div>
+                            <div style={{ fontSize: 13, color: '#eca6a4' }}>{d.source}</div>
                             <pre style={{ whiteSpace: 'pre-wrap' }}>{d.text}</pre>
                             {d.parsed && (
                                 <div>

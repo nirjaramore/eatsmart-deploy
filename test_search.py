@@ -5,7 +5,7 @@ import requests
 import json
 
 # Test search endpoint
-url = "http://localhost:8000/search"
+url = "http://localhost:3000/search"
 data = {
     "query": "amul",
     "user_id": "test_user",
@@ -23,4 +23,4 @@ try:
         print(f"Error: {response.text}")
 except Exception as e:
     print(f"Connection error: {e}")
-    print("Make sure the backend server is running on http://localhost:8000")
+    print("Make sure the backend server is running on http://localhost:3000")

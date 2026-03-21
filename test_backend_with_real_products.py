@@ -45,7 +45,7 @@ for barcode, expected_name in list(test_barcodes.items())[:2]:
     
     try:
         response = requests.post(
-            "http://localhost:8000/analyze-barcode",
+            "http://localhost:3000/analyze-barcode",
             json={
                 "barcode": barcode,
                 "user_id": "test",

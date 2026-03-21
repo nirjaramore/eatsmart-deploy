@@ -9,8 +9,7 @@ type Item = {
     text: string
     error?: string
     parsed?: Record<string, any>
-    frontImageUrl?: string
-    frontUploading?: boolean
+    productName?: string
     size?: number
     file?: File
     uploadedAndSaved?: boolean
@@ -81,21 +80,23 @@ function parseNutrition(text: string) {
         for (const k of keys) {
             // More flexible patterns: "protein 10g", "protein: 10g", "total protein 10g", etc.
             const patterns = [
-                new RegExp(`\\b${k}\\b\\s*[:\\-]?\\s*(\\d+(?:\\.\\d+)?)\\s*(g|mg|kcal|cal|kj)?`, 'i'),
-                new RegExp(`\\btotal\\s+${k}\\b\\s*[:\\-]?\\s*(\\d+(?:\\.\\d+)?)\\s*(g|mg|kcal|cal|kj)?`, 'i'),
-                new RegExp(`\\b${k}\\s+per\\s+serving\\b\\s*[:\\-]?\\s*(\\d+(?:\\.\\d+)?)\\s*(g|mg|kcal|cal|kj)?`, 'i'),
+                new RegExp(`\\b${k}\\b\\s*[:\\-]?\\s*(\\d{1,4}(?:[\\.,]\\d+)?)\\s*(g|mg|kcal|cal|kj|ml)?`, 'i'),
+                new RegExp(`\\btotal\\s+${k}\\b\\s*[:\\-]?\\s*(\\d{1,4}(?:[\\.,]\\d+)?)\\s*(g|mg|kcal|cal|kj|ml)?`, 'i'),
+                new RegExp(`\\b${k}\\s+per\\s+serving\\b\\s*[:\\-]?\\s*(\\d{1,4}(?:[\\.,]\\d+)?)\\s*(g|mg|kcal|cal|kj|ml)?`, 'i'),
                 // Handle cases where number comes first: "10g protein"
-                new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(g|mg|kcal|cal|kj)?\\s*\\b${k}\\b`, 'i'),
+                new RegExp(`(\\d{1,4}(?:[\\.,]\\d+)?)\\s*(g|mg|kcal|cal|kj|ml)?\\s*\\b${k}\\b`, 'i'),
                 // Handle "protein (g)" format
-                new RegExp(`\\b${k}\\b\\s*\\([^)]*\\)\\s*[:\\-]?\\s*(\\d+(?:\\.\\d+)?)`, 'i'),
+                new RegExp(`\\b${k}\\b\\s*\\([^)]*\\)\\s*[:\\-]?\\s*(\\d{1,4}(?:[\\.,]\\d+)?)`, 'i'),
                 // Fuzzy matching for garbled text - look for number near keyword
-                new RegExp(`\\b${k}\\w*\\s*(\\d+(?:\\.\\d+)?)\\s*(g|mg|kcal|cal|kj)?`, 'i'),
-                new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(g|mg|kcal|cal|kj)?\\s*\\b${k}\\w*`, 'i'),
+                new RegExp(`\\b${k}\\w*\\s*(\\d{1,4}(?:[\\.,]\\d+)?)\\s*(g|mg|kcal|cal|kj|ml)?`, 'i'),
+                new RegExp(`(\\d{1,4}(?:[\\.,]\\d+)?)\\s*(g|mg|kcal|cal|kj|ml)?\\s*\\b${k}\\w*`, 'i'),
+                // Table-ish spacing / no delimiter line styles
+                new RegExp(`\\b${k}\\b\\s+(\\d{1,4}(?:[\\.,]\\d+)?)\\b`, 'i'),
             ]
 
             for (const re of patterns) {
                 const m = text.match(re)
-                if (m) return { value: parseFloat(m[1]), unit: m[2] || '' }
+                if (m) return { value: parseFloat(String(m[1]).replace(',', '.')), unit: m[2] || '' }
             }
         }
         return null
@@ -254,6 +255,7 @@ async function searchOpenFoodFactsByBrand(brandOrProduct: string): Promise<any |
 }
 
 export default function ImageUploadExtract() {
+    const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8006').replace(/\/$/, '')
     const [items, setItems] = useState<Item[]>([])
     const [showThankYou, setShowThankYou] = useState(false)
     const [thankYouMessage, setThankYouMessage] = useState('')
@@ -261,90 +263,6 @@ export default function ImageUploadExtract() {
     const processingIdRef = useRef<string | null>(null)
     const thankYouTimeoutRef = useRef<number | null>(null)
     const browseInputRef = useRef<HTMLInputElement | null>(null)
-
-    const handleFrontImageUpload = async (itemId: string, f: File) => {
-        // Use functional updates to avoid stale closure values
-        setItems(prev => prev.map(x => x.id === itemId ? { ...x, frontUploading: true } : x))
-        try {
-            const fd = new FormData()
-            fd.append('file', f)
-            const r = await fetch('http://localhost:8000/upload-front-image', { method: 'POST', body: fd })
-            if (!r.ok) throw new Error(`Upload failed ${r.status}`)
-            const j = await r.json()
-            const imageUrl = j?.url
-
-            if (!imageUrl) {
-                throw new Error('Upload succeeded but server did not return a URL')
-            }
-
-            // Immediately persist front image URL in state so user sees it
-            setItems(prev => prev.map(x => x.id === itemId ? { ...x, frontImageUrl: imageUrl } : x))
-
-            // derive payload using latest state
-            let payloadName = 'Unknown Product'
-            let parsed: any = undefined
-            setItems(prev => {
-                const found = prev.find(p => p.id === itemId)
-                if (found) {
-                    payloadName = (found.parsed?.product_name) || found.name || (found.text ? found.text.split('\n')[0].slice(0, 200) : 'Unknown Product')
-                    parsed = found.parsed
-                }
-                return prev
-            })
-
-            const completePayload = {
-                barcode: null,
-                product_name: payloadName,
-                brand: null,
-                manufacturer: null,
-                region: null,
-                weight: null,
-                fssai_license: null,
-                image_url: imageUrl,
-                is_verified: false,
-                verified_by: null,
-                nutrition: {
-                    serving_size: parsed?.calories ? 100 : null,
-                    servings_per_container: null,
-                    calories: parsed?.calories || null,
-                    total_fat: parsed?.fat || parsed?.fat_g || null,
-                    saturated_fat: null,
-                    trans_fat: null,
-                    cholesterol: null,
-                    sodium: parsed?.sodium || parsed?.sodium_mg || null,
-                    total_carbohydrates: parsed?.carbs || parsed?.carbs_g || null,
-                    dietary_fiber: parsed?.fiber || parsed?.fiber_g || null,
-                    total_sugars: parsed?.sugar || parsed?.sugar_g || null,
-                    added_sugars: null,
-                    protein: parsed?.protein || parsed?.protein_g || null
-                },
-                user_id: null
-            }
-
-            const res = await fetch('http://localhost:8000/save-product-complete', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(completePayload)
-            })
-
-            if (!res.ok) {
-                const bodyText = await res.text().catch(() => '')
-                console.error('Failed to save product after upload', res.status, bodyText)
-                setItems(prev => prev.map(x => x.id === itemId ? { ...x, frontUploading: false } : x))
-                alert('Failed to save product after upload')
-                return
-            }
-
-            // success - mark saved and clear parsed/text for privacy
-            setItems(prev => prev.map(x => x.id === itemId ? { ...x, frontUploading: false, uploadedAndSaved: true, text: '', parsed: undefined } : x))
-
-            // clear the file input so user can re-upload if needed
-            const inputEl = document.getElementById(`front-input-${itemId}`) as HTMLInputElement | null
-            if (inputEl) inputEl.value = ''
-        } catch (e) {
-            console.error('Front upload/save error', e)
-            setItems(prev => prev.map(x => x.id === itemId ? { ...x, frontUploading: false } : x))
-            alert('Front image upload/save failed')
-        }
-    }
 
     useEffect(() => {
         // No cleanup needed for backend Vision API
@@ -375,12 +293,16 @@ export default function ImageUploadExtract() {
         }))
 
         setItems((s) => [...newItems, ...s])
+    }
 
-        // process files sequentially to avoid blocking
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i]
-            const itemId = newItems[i].id
-            await processFile(file, itemId)
+    const handleNext = async () => {
+        const pending = items.filter(it => it.status === 'idle' && it.file)
+        if (!pending.length) return
+
+        for (const it of pending) {
+            if (it.file) {
+                await processFile(it.file, it.id)
+            }
         }
     }
 
@@ -432,7 +354,7 @@ export default function ImageUploadExtract() {
             let text = ''
             let apiUsed: string = 'unknown'
             try {
-                const ocrResponse = await fetch('http://localhost:8000/extract-text', {
+                const ocrResponse = await fetch(`${API_BASE_URL}/extract-text`, {
                     method: 'POST',
                     body: formData
                 })
@@ -465,7 +387,7 @@ export default function ImageUploadExtract() {
             try {
                 const detectFormData = new FormData()
                 detectFormData.append('file', file)
-                const detectResponse = await fetch('http://localhost:8000/detect-product', {
+                const detectResponse = await fetch(`${API_BASE_URL}/detect-product`, {
                     method: 'POST',
                     body: detectFormData
                 })
@@ -524,7 +446,7 @@ export default function ImageUploadExtract() {
                 setItems((prev) => prev.map((it) => (it.id === id ? { ...it, progress: 70 } : it)))
 
                 try {
-                    const searchResponse = await fetch('http://localhost:8000/search-product-by-name', {
+                    const searchResponse = await fetch(`${API_BASE_URL}/search-product-by-name`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -547,7 +469,7 @@ export default function ImageUploadExtract() {
                             // Get detailed product info including nutrition
                             if (topMatch.product_url) {
                                 try {
-                                    const detailsResponse = await fetch(`http://localhost:8000/get-product-details?product_url=${encodeURIComponent(topMatch.product_url)}`)
+                                    const detailsResponse = await fetch(`${API_BASE_URL}/get-product-details?product_url=${encodeURIComponent(topMatch.product_url)}`)
 
                                     if (detailsResponse.ok) {
                                         const detailsResult = await detailsResponse.json()
@@ -588,39 +510,7 @@ export default function ImageUploadExtract() {
                                         setItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: 'done', progress: 100, text: JSON.stringify(productData, null, 2), parsed } : it)))
                                         console.log(`💾 Product data ready from ${topMatch.source} (WEB SCRAPING)`)
 
-                                        // Auto-save and show thank you
-                                        try {
-                                            const autoSaveItem: Item = { id, name: file.name, url: URL.createObjectURL(file), status: 'done', progress: 100, text: JSON.stringify(productData, null, 2), parsed, size: file.size, file, uploadedAndSaved: false }
-                                            saveItem(autoSaveItem)
-                                            console.log('🔁 Auto-save triggered for', file.name)
-                                        } catch (e) {
-                                            console.error('Auto-save failed to start', e)
-                                        }
-
-                                        const productName = parsed.product_name || file.name
-                                        try {
-                                            if (thankYouTimeoutRef.current) {
-                                                window.clearTimeout(thankYouTimeoutRef.current)
-                                                thankYouTimeoutRef.current = null
-                                            }
-                                            const objUrl = URL.createObjectURL(file)
-                                            setThankYouImageUrl(objUrl)
-                                            setThankYouMessage(productName)
-                                            setShowThankYou(true)
-                                            const tid = window.setTimeout(() => {
-                                                setShowThankYou(false)
-                                                setThankYouImageUrl(null)
-                                                try { URL.revokeObjectURL(objUrl) } catch (e) { }
-                                                thankYouTimeoutRef.current = null
-                                            }, 3000)
-                                            thankYouTimeoutRef.current = tid
-                                        } catch (e) {
-                                            setThankYouMessage(`Processing complete for ${productName}!`)
-                                            setShowThankYou(true)
-                                            if (thankYouTimeoutRef.current) window.clearTimeout(thankYouTimeoutRef.current)
-                                            thankYouTimeoutRef.current = window.setTimeout(() => setShowThankYou(false), 3000)
-                                        }
-
+                                        // Keep parsed result visible; user can review then click Save.
                                         return
                                     }
                                 } catch (e) {
@@ -753,56 +643,7 @@ export default function ImageUploadExtract() {
             })
             setItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: 'done', progress: 100, text, parsed } : it)))
 
-            // Auto-save the parsed product to backend immediately (no user click)
-            try {
-                // Construct a minimal Item-shaped object for saveItem
-                const autoSaveItem: Item = {
-                    id,
-                    name: file.name,
-                    url: URL.createObjectURL(file),
-                    status: 'done',
-                    progress: 100,
-                    text,
-                    parsed,
-                    size: file.size,
-                    file,
-                    uploadedAndSaved: false
-                }
-                // Fire-and-forget save; saveItem handles its own errors and state updates
-                saveItem(autoSaveItem)
-                console.log('🔁 Auto-save triggered for', file.name)
-            } catch (e) {
-                console.error('Auto-save failed to start', e)
-            }
-
-            // Show thank you screen immediately
-            const productName = parsed.product_name || file.name
-            // Use the uploaded image as the thank-you hero and show message
-            try {
-                // clear any previous timeout
-                if (thankYouTimeoutRef.current) {
-                    window.clearTimeout(thankYouTimeoutRef.current)
-                    thankYouTimeoutRef.current = null
-                }
-                const objUrl = URL.createObjectURL(file)
-                setThankYouImageUrl(objUrl)
-                setThankYouMessage(productName)
-                setShowThankYou(true)
-
-                // Hide exactly after 3 seconds and cleanup object URL
-                const tid = window.setTimeout(() => {
-                    setShowThankYou(false)
-                    setThankYouImageUrl(null)
-                    try { URL.revokeObjectURL(objUrl) } catch (e) { }
-                    thankYouTimeoutRef.current = null
-                }, 3000)
-                thankYouTimeoutRef.current = tid
-            } catch (e) {
-                setThankYouMessage(`Processing complete for ${productName}!`)
-                setShowThankYou(true)
-                if (thankYouTimeoutRef.current) window.clearTimeout(thankYouTimeoutRef.current)
-                thankYouTimeoutRef.current = window.setTimeout(() => setShowThankYou(false), 3000)
-            }
+            // Keep parsed result visible; user can review then click Save.
         } catch (err: any) {
             const msg = err?.message || String(err) || 'Vision API processing failed'
             console.error('Google Cloud Vision API processing error', err)
@@ -859,10 +700,29 @@ export default function ImageUploadExtract() {
 
     const saveItem = (it: Item) => {
         (async () => {
+            const productName = it.productName?.trim() || it.parsed?.product_name || it.name?.replace(/\.[^/.]+$/, '') || 'Unknown Product'
+            if (!productName || productName === 'Unknown Product') {
+                alert('Please enter a product name before saving.')
+                return
+            }
+
             // Send parsed product to backend to persist in DB
             try {
+                let persistedImageUrl: string | undefined
+                if (it.file) {
+                    const uploadFd = new FormData()
+                    uploadFd.append('file', it.file)
+                    uploadFd.append('image_type', 'back')
+                    uploadFd.append('alt_text', productName)
+                    const uploadRes = await fetch(`${API_BASE_URL}/upload-front-image`, { method: 'POST', body: uploadFd })
+                    if (uploadRes.ok) {
+                        const uploadJson = await uploadRes.json()
+                        persistedImageUrl = uploadJson?.url
+                    }
+                }
+
                 const payload = {
-                    name: it.parsed?.product_name || it.name || (it.parsed && it.parsed._debug && it.parsed._debug.extracted_text ? it.parsed._debug.extracted_text.split('\n')[0].slice(0, 200) : 'Unknown Product'),
+                    name: productName,
                     brand: undefined,
                     calories: it.parsed?.calories || undefined,
                     protein_g: it.parsed?.protein || it.parsed?.protein_g || undefined,
@@ -873,13 +733,13 @@ export default function ImageUploadExtract() {
                     sodium_mg: it.parsed?.sodium || it.parsed?.sodium_mg || undefined,
                     ingredients: it.parsed?._debug?.corrected_text || undefined,
                     allergens: [],
-                    image_url: it.frontImageUrl || undefined
+                    image_url: persistedImageUrl || undefined
                 }
 
                 // Prefer saving to products table using save-product-complete
                 const completePayload = {
                     barcode: null,
-                    product_name: payload.name || 'Unknown Product',
+                    product_name: productName,
                     brand: payload.brand || null,
                     manufacturer: null,
                     region: null,
@@ -907,7 +767,7 @@ export default function ImageUploadExtract() {
                 }
 
                 console.log('💾 Saving to database...', completePayload)
-                const res = await fetch('http://localhost:8000/save-product-complete', {
+                const res = await fetch(`${API_BASE_URL}/save-product-complete`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(completePayload)
@@ -953,6 +813,26 @@ export default function ImageUploadExtract() {
     }
 
     const onDragOver = (e: React.DragEvent) => { e.preventDefault() }
+
+    const asNumber = (v: any): number | null => {
+        if (v === null || v === undefined || v === '') return null
+        if (typeof v === 'number' && Number.isFinite(v)) return v
+        if (typeof v === 'string') {
+            const cleaned = v.replace(/[^\d.,-]/g, '').replace(',', '.')
+            const n = parseFloat(cleaned)
+            return Number.isFinite(n) ? n : null
+        }
+        return null
+    }
+
+    const getMetric = (parsed: Record<string, any> | undefined, keys: string[]): number | null => {
+        if (!parsed) return null
+        for (const k of keys) {
+            const n = asNumber(parsed[k])
+            if (n !== null) return n
+        }
+        return null
+    }
 
     const humanSize = (bytes: number) => {
         if (!bytes) return '0 B'
@@ -1015,14 +895,14 @@ export default function ImageUploadExtract() {
                             </div>
 
                             <div style={{ textAlign: 'center', padding: '0 1rem' }}>
-                                <div style={{ fontWeight: 700, fontSize: '1.25rem', marginBottom: 8 }}>Thank you for contributing to our community</div>
-                                <div style={{ fontSize: 14, color: '#666' }}>We’ve received your contribution — it will appear after review.</div>
+                                <div style={{ fontWeight: 700, fontSize: '1.25rem', marginBottom: 8, color: '#e27575' }}>Thank you for contributing to our community</div>
+                                <div style={{ fontSize: 14, color: '#eca6a4' }}>We’ve received your contribution — it will appear after review.</div>
                             </div>
                         </div>
                     ) : (
                         <div style={{ display: showThankYou ? 'none' : 'block' }}>
                             <h2 style={{ margin: 0, marginBottom: 12 }}>Upload Files</h2>
-                            <p style={{ marginTop: 0, marginBottom: 18, color: '#666' }}>Upload your user-downloadable files.</p>
+                            <p style={{ marginTop: 0, marginBottom: 18, color: '#eca6a4' }}>Upload your user-downloadable files.</p>
 
                             <div
                                 onDrop={onDrop}
@@ -1030,10 +910,10 @@ export default function ImageUploadExtract() {
                                 style={{ borderRadius: 12, background: '#f6f6f6', padding: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
                             >
                                 <div style={{ width: 64, height: 64, borderRadius: 12, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(0,0,0,0.03)' }}>
-                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 16V8" stroke="#E53A33" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 12l4-4 4 4" stroke="#E53A33" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M21 15v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2" stroke="#E53A33" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 16V8" stroke="#e27575" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 12l4-4 4 4" stroke="#e27575" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M21 15v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2" stroke="#e27575" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                                 </div>
-                                <div style={{ fontSize: 16, fontWeight: 600 }}>Drop your files here or browse</div>
-                                <div style={{ fontSize: 12, color: '#999' }}>Max file size up to 1 GB</div>
+                                <div style={{ fontSize: 16, fontWeight: 600, color: '#e27575' }}>Drop your files here or browse</div>
+                                <div style={{ fontSize: 12, color: '#eca6a4' }}>Max file size up to 1 GB</div>
                                 <div style={{ marginTop: 8 }}>
                                     <input ref={browseInputRef} id="browse-files-input" type="file" accept="image/*,application/pdf" multiple onChange={onFiles} style={{ display: 'none' }} />
                                     <button onClick={() => browseInputRef.current?.click()} style={{ marginTop: 8, padding: '8px 14px', borderRadius: 10, background: '#fff', border: '1px solid #eee' }}>Browse files</button>
@@ -1042,7 +922,7 @@ export default function ImageUploadExtract() {
 
                             <div style={{ marginTop: 18 }}>
                                 {items.length === 0 && (
-                                    <div style={{ padding: 18, borderRadius: 12, background: '#fff', border: '1px solid #f0f0f0', textAlign: 'center', color: '#777' }}>No files uploaded yet.</div>
+                                    <div style={{ padding: 18, borderRadius: 12, background: '#fff', border: '1px solid #f0f0f0', textAlign: 'center', color: '#eca6a4' }}>No files uploaded yet.</div>
                                 )}
 
                                 {items.map((it) => (
@@ -1051,39 +931,49 @@ export default function ImageUploadExtract() {
                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '12px 0' }}>
                                                 <img src="/thankyou.jpeg" alt="thankyou" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 12, marginBottom: 12 }} />
                                                 <div style={{ textAlign: 'center' }}>
-                                                    <div style={{ fontWeight: 700 }}>Thank you for contributing to our community</div>
-                                                    <div style={{ fontSize: 13, color: '#666', marginTop: 6 }}>We’ve received your contribution — it will appear after review.</div>
+                                                    <div style={{ fontWeight: 700, color: '#e27575' }}>Thank you for contributing to our community</div>
+                                                    <div style={{ fontSize: 13, color: '#eca6a4', marginTop: 6 }}>We’ve received your contribution — it will appear after review.</div>
                                                 </div>
                                             </div>
                                         ) : (
                                             <>
-                                                <div style={{ width: 44, height: 44, borderRadius: 8, background: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#E53A33' }}>{it.name.split('.').pop()?.toUpperCase() || 'IMG'}</div>
+                                                <div style={{ width: 44, height: 44, borderRadius: 8, background: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#e27575' }}>{it.name.split('.').pop()?.toUpperCase() || 'IMG'}</div>
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                        <div style={{ fontWeight: 600 }}>{it.name}</div>
-                                                        <div style={{ fontSize: 12, color: '#999' }}>{humanSize(it.size || 0)}</div>
+                                                        <div style={{ fontWeight: 600, color: '#e27575' }}>{it.name}</div>
+                                                        <div style={{ fontSize: 12, color: '#eca6a4' }}>{humanSize(it.size || 0)}</div>
                                                     </div>
 
                                                     <div style={{ marginTop: 8 }}>
                                                         <div style={{ height: 8, background: '#eee', borderRadius: 8, overflow: 'hidden' }}>
-                                                            <div style={{ width: `${it.progress}%`, height: '100%', background: '#E53A33', transition: 'width 300ms' }} />
+                                                            <div style={{ width: `${it.progress}%`, height: '100%', background: '#e27575', transition: 'width 300ms' }} />
                                                         </div>
                                                     </div>
+                                                    {it.parsed && (
+                                                        <>
+                                                            <div style={{ marginTop: 8 }}>
+                                                                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#e27575', marginBottom: 4 }}>Product name</label>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Enter product name (e.g. Maggi Noodles)"
+                                                                    value={it.productName ?? (it.parsed?.product_name || it.name?.replace(/\.[^/.]+$/, '') || '')}
+                                                                    onChange={(e) => setItems(prev => prev.map(x => x.id === it.id ? { ...x, productName: e.target.value } : x))}
+                                                                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #eee', fontSize: 14, color: '#eca6a4' }}
+                                                                />
+                                                            </div>
+                                                            <div style={{ marginTop: 8, fontSize: 12, color: '#eca6a4' }}>
+                                                                Calories: {getMetric(it.parsed, ['calories', 'energy_kcal', 'energy']) ?? 'NA'} |
+                                                                Protein: {getMetric(it.parsed, ['protein', 'proteins', 'protein_g']) ?? 'NA'}g |
+                                                                Carbs: {getMetric(it.parsed, ['carbs', 'carbohydrates', 'total_carbohydrates', 'carbs_g']) ?? 'NA'}g |
+                                                                Fat: {getMetric(it.parsed, ['fat', 'total_fat', 'fat_g']) ?? 'NA'}g |
+                                                                Sugar: {getMetric(it.parsed, ['sugar', 'total_sugars', 'sugar_g']) ?? 'NA'}g
+                                                            </div>
+                                                        </>
+                                                    )}
                                                 </div>
                                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                                    <button disabled={it.status !== 'done'} onClick={() => saveItem(it)} style={{ padding: '8px 10px', borderRadius: 8, background: '#E53A33', color: '#fff', border: 'none' }}>Save</button>
+                                                    <button disabled={it.status !== 'done'} onClick={() => saveItem(it)} style={{ padding: '8px 10px', borderRadius: 8, background: '#e27575', color: '#fff', border: 'none' }}>Save</button>
                                                     <button onClick={() => setItems((prev) => prev.filter((x) => x.id !== it.id))} style={{ padding: '8px 10px', borderRadius: 8, background: '#fff', border: '1px solid #eee' }}>Delete</button>
-
-                                                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
-                                                        <input id={`front-input-${it.id}`} type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
-                                                            const f = e.target?.files?.[0]
-                                                            if (!f) return
-                                                            await handleFrontImageUpload(it.id, f)
-                                                        }} />
-                                                        <button onClick={() => document.getElementById(`front-input-${it.id}`)?.click()} style={{ padding: '8px 10px', borderRadius: 8, background: '#fff', border: '1px solid #eee' }}>Upload Front Image</button>
-                                                    </div>
-                                                    {it.frontUploading && <span style={{ fontSize: 12, color: '#666' }}>Uploading...</span>}
-                                                    {it.frontImageUrl && !it.uploadedAndSaved && <a href={it.frontImageUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>View front image</a>}
                                                 </div>
                                             </>
                                         )}
@@ -1094,7 +984,7 @@ export default function ImageUploadExtract() {
                             {items.length > 0 && !showThankYou && (
                                 <div style={{ marginTop: 18, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                                     <button onClick={clearAll} style={{ flex: 1, padding: '10px 16px', borderRadius: 999, background: '#fff', border: '1px solid #eee' }}>Back</button>
-                                    <button onClick={() => alert('Next')} style={{ flex: 1, padding: '10px 16px', borderRadius: 999, background: '#000', color: '#fff' }}>Next</button>
+                                    <button onClick={handleNext} style={{ flex: 1, padding: '10px 16px', borderRadius: 999, background: '#e27575', color: '#fff' }}>Next</button>
                                 </div>
                             )}
                         </div>

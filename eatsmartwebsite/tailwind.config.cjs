@@ -8,8 +8,8 @@ module.exports = {
     theme: {
     	extend: {
     		colors: {
-    			brandBg: '#ffe9ec',
-    			brandText: '#65001e',
+    			brandBg: '#fae5e7',
+    			brandText: '#e27575',
     			background: 'hsl(var(--background))',
     			foreground: 'hsl(var(--foreground))',
     			card: {

@@ -1,19 +1,76 @@
 .productsMain {
     min-height: 100vh;
-    background: var(--brand-bg, #ffe9ec);
-    padding: 0;
-    margin: 0 -24px;
-    /* Offset the body padding */
-    width: calc(100% + 48px);
-    /* Account for body padding on both sides */
+    background: var(--brand-bg, #fae5e7);
+    padding: 0 0 32px;
     position: relative;
+}
+
+.pageContainer {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+    box-sizing: border-box;
+}
+
+.topNav {
+    background: #ffffff;
+    border-bottom: 1px solid #f0d6d9;
+    padding: 14px 0;
+}
+
+.topNav .pageContainer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.navBrand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    color: #e27575;
+}
+
+.logoDot {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: #e27575;
+}
+
+.navActions {
+    display: inline-flex;
+    gap: 10px;
+}
+
+.navButton,
+.navButtonSecondary {
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.navButton {
+    background: #e27575;
+    color: #fff;
+}
+
+.navButtonSecondary {
+    background: #fff;
+    color: #e27575;
+    border-color: #f0d6d9;
 }
 
 /* Hero Section */
 .productsHero {
-    background: linear-gradient(135deg, #E53A33 0%, #ff6b64 100%);
+    background: linear-gradient(135deg, #e27575 0%, #eca6a4 100%);
     color: white;
-    padding: 60px 24px 50px;
+    padding: 56px 0 40px;
     text-align: center;
     position: relative;
     overflow: hidden;
@@ -73,7 +130,7 @@
 .searchIcon {
     position: absolute;
     left: 20px;
-    color: #999;
+    color: #eca6a4;
     pointer-events: none;
     z-index: 2;
 }
@@ -88,7 +145,7 @@
     background: white;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
     transition: all 0.3s ease;
-    color: #333;
+    color: #eca6a4;
 }
 
 .searchInput:focus {
@@ -98,7 +155,68 @@
 }
 
 .searchInput::placeholder {
-    color: #999;
+    color: #eca6a4;
+}
+
+.controlsSection {
+    background: #fff;
+    border-bottom: 1px solid #f0d6d9;
+    padding: 14px 0 12px;
+}
+
+.controlBar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.controlBar .searchInput {
+    flex: 1 1 280px;
+    min-width: 240px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #e7e7e7;
+    box-shadow: none;
+    transform: none;
+}
+
+.controlSelect {
+    height: 42px;
+    padding: 0 12px;
+    border: 1px solid #e7e7e7;
+    border-radius: 10px;
+    background: #fff;
+    color: #eca6a4;
+    font-size: 14px;
+}
+
+.chipGroup {
+    display: inline-flex;
+    gap: 8px;
+}
+
+.chip {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid #e7e7e7;
+    background: #fff;
+    color: #eca6a4;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.chipActive {
+    border-color: #e27575;
+    color: #e27575;
+    background: rgba(236, 166, 164, 0.3);
+}
+
+.resultCount {
+    margin: 10px 0 0;
+    color: #eca6a4;
+    font-size: 13px;
 }
 
 .clearSearchBtn {
@@ -109,7 +227,7 @@
     border: none;
     background: #f5f5f5;
     border-radius: 50%;
-    color: #666;
+    color: #eca6a4;
     font-size: 20px;
     line-height: 1;
     cursor: pointer;
@@ -121,7 +239,7 @@
 
 .clearSearchBtn:hover {
     background: #e0e0e0;
-    color: #333;
+    color: #eca6a4;
 }
 
 /* Filters Section */
@@ -148,15 +266,15 @@
     font-family: 'Baloo 2', sans-serif;
     font-size: 24px;
     font-weight: 700;
-    color: var(--brand-text, #65001e);
+    color: var(--brand-text, #e27575);
     margin: 0;
 }
 
 .clearFiltersBtn {
     padding: 10px 20px;
     background: transparent;
-    border: 2px solid #E53A33;
-    color: #E53A33;
+    border: 2px solid #e27575;
+    color: #e27575;
     border-radius: 24px;
     font-family: 'Poppins', sans-serif;
     font-weight: 600;
@@ -166,7 +284,7 @@
 }
 
 .clearFiltersBtn:hover {
-    background: #E53A33;
+    background: #e27575;
     color: white;
 }
 
@@ -190,13 +308,13 @@
     font-family: 'Poppins', sans-serif;
     font-weight: 600;
     font-size: 14px;
-    color: #666;
+    color: #eca6a4;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
 .filterLabel svg {
-    color: #E53A33;
+    color: #e27575;
 }
 
 .filterSelect {
@@ -206,25 +324,25 @@
     font-family: 'Poppins', sans-serif;
     font-size: 15px;
     background: white;
-    color: #333;
+    color: #eca6a4;
     cursor: pointer;
     transition: all 0.3s ease;
 }
 
 .filterSelect:hover {
-    border-color: #E53A33;
+    border-color: #e27575;
 }
 
 .filterSelect:focus {
     outline: none;
-    border-color: #E53A33;
-    box-shadow: 0 0 0 3px rgba(229, 58, 51, 0.1);
+    border-color: #e27575;
+    box-shadow: 0 0 0 3px rgba(226, 117, 117, 0.2);
 }
 
 .resultsInfo {
     font-family: 'Poppins', sans-serif;
     font-size: 15px;
-    color: #666;
+    color: #eca6a4;
     padding: 16px;
     background: #f9f9f9;
     border-radius: 12px;
@@ -232,13 +350,13 @@
 }
 
 .resultsInfo strong {
-    color: #E53A33;
+    color: #e27575;
     font-weight: 700;
 }
 
 /* Products Section */
 .productsSection {
-    padding: 48px 24px;
+    padding: 36px 0;
     width: 100%;
 }
 
@@ -269,7 +387,7 @@
     width: 48px;
     height: 48px;
     border: 4px solid #f0f0f0;
-    border-top-color: #E53A33;
+    border-top-color: #e27575;
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -283,7 +401,7 @@
 .loadingState p {
     font-family: 'Poppins', sans-serif;
     font-size: 16px;
-    color: #666;
+    color: #eca6a4;
 }
 
 /* Empty State */
@@ -301,14 +419,14 @@
     font-family: 'Baloo 2', sans-serif;
     font-size: 28px;
     font-weight: 700;
-    color: var(--brand-text, #65001e);
+    color: var(--brand-text, #e27575);
     margin: 0;
 }
 
 .emptyState p {
     font-family: 'Poppins', sans-serif;
     font-size: 16px;
-    color: #666;
+    color: #eca6a4;
     margin: 0 0 24px 0;
 }
 
@@ -320,6 +438,12 @@
 }
 
 @media (max-width: 768px) {
+    .topNav .pageContainer {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
     .heroTitle {
         font-size: 36px;
     }
@@ -329,15 +453,7 @@
     }
 
     .productsHero {
-        padding: 50px 16px 40px;
-    }
-
-    .filtersSection {
-        padding: 24px 16px;
-    }
-
-    .filtersContainer {
-        padding: 0 16px;
+        padding: 48px 0 34px;
     }
 
     .filtersHeader {
@@ -351,7 +467,7 @@
     }
 
     .productsSection {
-        padding: 32px 16px;
+        padding: 28px 0;
     }
 
     .productsGrid {
@@ -361,6 +477,10 @@
 }
 
 @media (max-width: 480px) {
+    .pageContainer {
+        padding: 0 14px;
+    }
+
     .heroTitle {
         font-size: 28px;
     }
@@ -384,11 +504,7 @@
     }
 
     .productsSection {
-        padding: 24px 12px;
-    }
-
-    .filtersSection {
-        padding: 20px 12px;
+        padding: 22px 0;
     }
 }
 

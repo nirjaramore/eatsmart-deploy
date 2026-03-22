@@ -11,7 +11,9 @@ const DEFAULT_API_BASE_URL = 'http://localhost:8007'
 const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL
 ).replace(/\/$/, '')
-const SUPABASE_PUBLIC_URL = 'https://reqfxmbjbfzhxvufrpsr.supabase.co'
+const SUPABASE_PUBLIC_URL = (
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://reqfxmbjbfzhxvufrpsr.supabase.co'
+).replace(/\/$/, '')
 const API_CANDIDATE_BASES = Array.from(
   new Set([
     API_BASE_URL,
@@ -23,14 +25,6 @@ const API_CANDIDATE_BASES = Array.from(
     'http://localhost:8000',
   ])
 )
-
-/* ===============================
-   MANUAL SUPABASE IMAGE MAPPING
-   =============================== */
-const MANUAL_IMAGE_MAP: Record<string, string> = {
-  '8901063090637':
-    'https://reqfxmbjbfzhxvufrpsr.supabase.co/storage/v1/object/public/eatsmart/Britannia%20Nutrichoice%20Digestive%20Zero_front.webp',
-}
 
 /* ===============================
    TYPES
@@ -56,6 +50,123 @@ type ProductsResponse = {
   total: number
   regions?: string[]
   brands?: string[]
+}
+
+/** Resolve Supabase storage URLs and relative paths from the DB */
+function normalizeImageUrl(
+  rawImageUrl: string | undefined,
+  opts: { supabaseUrl: string; apiBase: string }
+): string | undefined {
+  if (!rawImageUrl) return undefined
+  const trimmed = rawImageUrl.trim()
+  if (!trimmed) return undefined
+
+  const { supabaseUrl, apiBase } = opts
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return encodeURI(trimmed)
+  }
+
+  if (trimmed.startsWith('//')) {
+    return encodeURI(`https:${trimmed}`)
+  }
+
+  if (trimmed.startsWith('/storage/v1/object/public/')) {
+    return encodeURI(`${supabaseUrl}${trimmed}`)
+  }
+
+  if (trimmed.startsWith('storage/v1/object/public/')) {
+    return encodeURI(`${supabaseUrl}/${trimmed}`)
+  }
+
+  if (trimmed.startsWith('/static/') || trimmed.startsWith('static/')) {
+    const resolved = trimmed.startsWith('/')
+      ? `${apiBase}${trimmed}`
+      : `${apiBase}/${trimmed}`
+    return encodeURI(resolved)
+  }
+
+  /* Bucket-relative path stored in Supabase (e.g. eatsmart/photo.webp) */
+  if (!trimmed.includes('://') && /^[a-z0-9_-]+\//i.test(trimmed)) {
+    return encodeURI(`${supabaseUrl}/storage/v1/object/public/${trimmed}`)
+  }
+
+  return encodeURI(trimmed)
+}
+
+function mapProductRow(r: Record<string, unknown>): ProductItem {
+  const id = String(r.id ?? '')
+  return {
+    id: `p-${id}`,
+    barcode: r.barcode != null ? String(r.barcode) : undefined,
+    product_name: String(r.product_name ?? 'Product'),
+    brand: r.brand != null ? String(r.brand) : undefined,
+    manufacturer: r.manufacturer != null ? String(r.manufacturer) : undefined,
+    region: r.region != null ? String(r.region) : undefined,
+    weight: r.weight != null ? String(r.weight) : undefined,
+    fssai_license: r.fssai_license != null ? String(r.fssai_license) : undefined,
+    image_url: r.image_url != null ? String(r.image_url) : undefined,
+    is_verified: Boolean(r.is_verified),
+    created_at: r.created_at != null ? String(r.created_at) : undefined,
+    uploaded_at:
+      r.updated_at != null
+        ? String(r.updated_at)
+        : r.created_at != null
+          ? String(r.created_at)
+          : undefined,
+  }
+}
+
+/** `food_images` table (legacy catalog + extra shots) */
+function mapFoodImageRow(r: Record<string, unknown>): ProductItem {
+  const id = String(r.id ?? '')
+  return {
+    id: `fi-${id}`,
+    barcode: r.barcode != null ? String(r.barcode) : undefined,
+    product_name: String(r.product_name ?? r.alt_text ?? 'Product'),
+    image_url: r.image_url != null ? String(r.image_url) : undefined,
+    image_type: r.image_type != null ? String(r.image_type) : undefined,
+    uploaded_at: r.uploaded_at != null ? String(r.uploaded_at) : undefined,
+  }
+}
+
+/** Stable key so "123" and 123 match; trims whitespace */
+function barcodeKey(barcode?: string | null) {
+  if (barcode == null || String(barcode).trim() === '') return ''
+  return String(barcode).trim()
+}
+
+function rowTimestamp(p: ProductItem) {
+  return new Date(p.uploaded_at || p.created_at || 0).getTime()
+}
+
+/**
+ * One card per product: `/save-product-complete` writes to `products` only.
+ * If the DB has duplicate rows (same barcode or same name with no barcode), keep the newest row.
+ */
+function dedupeProductsFromDb(items: ProductItem[]): ProductItem[] {
+  const byBarcode = new Map<string, ProductItem>()
+  const byNameKey = new Map<string, ProductItem>()
+
+  for (const p of items) {
+    const bk = barcodeKey(p.barcode)
+    if (bk) {
+      const existing = byBarcode.get(bk)
+      if (!existing || rowTimestamp(p) >= rowTimestamp(existing)) {
+        byBarcode.set(bk, p)
+      }
+      continue
+    }
+
+    const nk = (p.product_name || '').trim().toLowerCase()
+    if (!nk) continue
+    const existing = byNameKey.get(nk)
+    if (!existing || rowTimestamp(p) >= rowTimestamp(existing)) {
+      byNameKey.set(nk, p)
+    }
+  }
+
+  return [...byBarcode.values(), ...byNameKey.values()]
 }
 
 export default function Product() {
@@ -150,26 +261,55 @@ export default function Product() {
   ).sort((a, b) => a.localeCompare(b))
 
   /* ===============================
-     FETCH PRODUCTS
+     FETCH — `products` (uploads/Save) + `food_images` (original catalog)
      =============================== */
+  const imgOpts = {
+    supabaseUrl: SUPABASE_PUBLIC_URL,
+    apiBase: API_BASE_URL,
+  }
+
+  const normalizeProductUrls = (items: ProductItem[]) =>
+    items.map(product => ({
+      ...product,
+      image_url: normalizeImageUrl(product.image_url, imgOpts),
+    }))
+
   const fetchProducts = async () => {
     setLoading(true)
 
     try {
       for (const baseUrl of API_CANDIDATE_BASES) {
-        const res = await fetch(`${baseUrl}/food-images?limit=200`)
+        try {
+          const [prodRes, foodRes] = await Promise.all([
+            fetch(`${baseUrl}/products?limit=500`),
+            fetch(`${baseUrl}/food-images?limit=500`),
+          ])
 
-        if (res.ok) {
-          const data: ProductsResponse = await res.json()
+          const prodJson: ProductsResponse = prodRes.ok
+            ? await prodRes.json()
+            : { products: [], total: 0 }
+          const foodJson: ProductsResponse = foodRes.ok
+            ? await foodRes.json()
+            : { products: [], total: 0 }
 
-          if (data.products?.length) {
-            const enriched = await keepLoadableImages(attachManualImages(data.products))
+          const prodRows = (prodJson.products || []) as Record<string, unknown>[]
+          const foodRows = (foodJson.products || []) as Record<string, unknown>[]
+
+          if (prodRows.length || foodRows.length) {
+            const mapped = [
+              ...prodRows.map(mapProductRow),
+              ...foodRows.map(mapFoodImageRow),
+            ]
+            const deduped = dedupeProductsFromDb(mapped)
+            const enriched = normalizeProductUrls(deduped)
+
             setProducts(enriched)
             setFilteredProducts(enriched)
-            setTotal(data.total || 0)
-
+            setTotal(enriched.length)
             return
           }
+        } catch {
+          /* try next API base */
         }
       }
 
@@ -188,113 +328,59 @@ export default function Product() {
   const fetchFromProductsTable = async () => {
     for (const baseUrl of API_CANDIDATE_BASES) {
       try {
-        const res = await fetch(`${baseUrl}/products?limit=100`)
+        const [prodRes, foodRes] = await Promise.all([
+          fetch(`${baseUrl}/products?limit=500`),
+          fetch(`${baseUrl}/food-images?limit=500`),
+        ])
 
-        if (res.ok) {
-          const data: ProductsResponse = await res.json()
-          const enriched = await keepLoadableImages(
-            attachManualImages(data.products || [])
-          )
+        if (prodRes.ok || foodRes.ok) {
+          const prodJson: ProductsResponse = prodRes.ok
+            ? await prodRes.json()
+            : { products: [], total: 0 }
+          const foodJson: ProductsResponse = foodRes.ok
+            ? await foodRes.json()
+            : { products: [], total: 0 }
 
-          setProducts(enriched)
-          setFilteredProducts(enriched)
-          setTotal(data.total || 0)
-          return
+          const prodRows = (prodJson.products || []) as Record<string, unknown>[]
+          const foodRows = (foodJson.products || []) as Record<string, unknown>[]
+
+          if (prodRows.length || foodRows.length) {
+            const mapped = [
+              ...prodRows.map(mapProductRow),
+              ...foodRows.map(mapFoodImageRow),
+            ]
+            const deduped = dedupeProductsFromDb(mapped)
+            const enriched = normalizeProductUrls(deduped)
+
+            setProducts(enriched)
+            setFilteredProducts(enriched)
+            setTotal(enriched.length)
+            return
+          }
         }
       } catch (err) {
         console.error(`Secondary fetch failed for ${baseUrl}`, err)
       }
     }
 
-    // 🔁 LocalStorage fallback
+    // 🔁 LocalStorage fallback (offline / no API)
     const stored = JSON.parse(
       localStorage.getItem('eatsmart_products') || '[]'
     )
 
-    const mapped = attachManualImages(
+    const mapped = dedupeProductsFromDb(
       stored.map((s: any) => ({
-        id: s.id,
+        id: `p-${String(s.id)}`,
         product_name: s.name,
         barcode: s.barcode,
         image_url: s.url,
       }))
     )
 
-    setProducts(mapped)
-    setFilteredProducts(mapped)
-  }
-
-  /* ===============================
-     IMAGE URL FIX
-     =============================== */
-  const normalizeImageUrl = (rawImageUrl?: string) => {
-    if (!rawImageUrl) return undefined
-    const trimmed = rawImageUrl.trim()
-    if (!trimmed) return undefined
-
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      return encodeURI(trimmed)
-    }
-
-    if (trimmed.startsWith('//')) {
-      return encodeURI(`https:${trimmed}`)
-    }
-
-    if (trimmed.startsWith('/storage/v1/object/public/')) {
-      return encodeURI(`${SUPABASE_PUBLIC_URL}${trimmed}`)
-    }
-
-    if (trimmed.startsWith('storage/v1/object/public/')) {
-      return encodeURI(`${SUPABASE_PUBLIC_URL}/${trimmed}`)
-    }
-
-    if (trimmed.startsWith('/static/') || trimmed.startsWith('static/')) {
-      const resolved = trimmed.startsWith('/')
-        ? `${API_BASE_URL}${trimmed}`
-        : `${API_BASE_URL}/${trimmed}`
-      return encodeURI(resolved)
-    }
-
-    return encodeURI(trimmed)
-  }
-
-  const isImageLoadable = (url: string) =>
-    new Promise<boolean>(resolve => {
-      const img = new Image()
-      const timeout = globalThis.setTimeout(() => resolve(false), 5000)
-      img.onload = () => {
-        globalThis.clearTimeout(timeout)
-        resolve(true)
-      }
-      img.onerror = () => {
-        globalThis.clearTimeout(timeout)
-        resolve(false)
-      }
-      img.src = url
-    })
-
-  const keepLoadableImages = async (items: ProductItem[]) => {
-    const checks = await Promise.all(
-      items.map(async item => {
-        if (!item.image_url) return false
-        return isImageLoadable(item.image_url)
-      })
-    )
-
-    return items.filter((_, idx) => checks[idx])
-  }
-
-  const attachManualImages = (items: ProductItem[]) => {
-    return items.map(product => {
-      const rawImageUrl =
-        product.image_url ||
-        (product.barcode ? MANUAL_IMAGE_MAP[product.barcode] : undefined)
-
-      return {
-        ...product,
-        image_url: normalizeImageUrl(rawImageUrl),
-      }
-    })
+    const enriched = normalizeProductUrls(mapped)
+    setProducts(enriched)
+    setFilteredProducts(enriched)
+    setTotal(enriched.length)
   }
 
   return (

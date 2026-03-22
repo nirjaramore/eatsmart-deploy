@@ -224,36 +224,6 @@ function parseNutrition(text: string) {
     return parsed
 }
 
-// Search OpenFoodFacts by brand/product name to avoid unnecessary Vision API calls
-async function searchOpenFoodFactsByBrand(brandOrProduct: string): Promise<any | null> {
-    try {
-        // Clean up brand name for search
-        const searchTerm = brandOrProduct.toLowerCase().trim()
-        const searchUrl = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(searchTerm)}&search_simple=1&action=process&json=1&page_size=5`
-
-        const res = await fetch(searchUrl)
-        const data = await res.json()
-
-        if (data && data.products && data.products.length > 0) {
-            // Return the first matching product
-            const product = data.products[0]
-            console.log('✅ Found product in OpenFoodFacts:', product.product_name || product.brands)
-            return {
-                barcode: product.code,
-                product_name: product.product_name,
-                brand: product.brands,
-                nutriments: product.nutriments,
-                image_url: product.image_url,
-                from_openfoodfacts: true
-            }
-        }
-        return null
-    } catch (e) {
-        console.error('OpenFoodFacts search failed:', e)
-        return null
-    }
-}
-
 export default function ImageUploadExtract() {
     const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8006').replace(/\/$/, '')
     const [items, setItems] = useState<Item[]>([])
@@ -300,13 +270,255 @@ export default function ImageUploadExtract() {
         if (!pending.length) return
 
         for (const it of pending) {
+            const name = (it.productName ?? '').trim() || it.name.replace(/\.[^/.]+$/, '').trim()
+            if (name.length < 2) {
+                alert('Please enter a product name for each file (e.g. "Britannia Marie Gold") before clicking Next.')
+                return
+            }
+        }
+
+        for (const it of pending) {
             if (it.file) {
-                await processFile(it.file, it.id)
+                const userName = (it.productName ?? '').trim() || it.name.replace(/\.[^/.]+$/, '').trim()
+                await processFile(it.file, it.id, userName)
             }
         }
     }
 
-    const processFile = async (file: File, id: string) => {
+    /** Map Amazon/BigBasket detail response into `parsed` + optional raw product for Save/UI */
+    const buildParsedFromScraperProduct = (productData: Record<string, any>, topMatch: Record<string, any>) => {
+        const n = productData.nutrition || {}
+                        const parsed: Record<string, any> = {
+            product_name: productData.product_name || topMatch.product_name,
+            brand: productData.brand ?? topMatch.brand,
+            price: productData.price ?? topMatch.price,
+            rating: productData.rating ?? topMatch.rating,
+            protein: n.protein ?? null,
+            fat: n.totalFat ?? null,
+            carbs: n.carbs ?? null,
+            sugar: n.sugars ?? null,
+            calories: n.calories ?? null,
+            fiber: n.fiber ?? null,
+            sodium: n.sodium ?? null,
+            image_url: productData.image_url || topMatch.image_url,
+            product_url: topMatch.product_url,
+            source: topMatch.source,
+            description: productData.description,
+            features: productData.features || [],
+            specifications: productData.specifications || {},
+            from_web_scraping: true,
+                            categories: [] as string[]
+                        }
+                        if (parsed.protein && parsed.protein >= 10) parsed.categories.push('High protein')
+                        if (parsed.fat && parsed.fat >= 17.5) parsed.categories.push('High fat')
+                        if (parsed.sugar && parsed.sugar >= 22.5) parsed.categories.push('High sugar')
+        return parsed
+    }
+
+    /** When the Python backend gets 0 hits (Amazon captcha, BigBasket timeout, OFF HTML response), query OFF from the browser. */
+    const fetchOffFromBrowser = async (q: string): Promise<{ parsed: Record<string, any>; text: string } | null> => {
+        const query = q.trim()
+        if (query.length < 2) return null
+        const tokenScore = (title: string): number => {
+            const qw = new Set((query.toLowerCase().match(/\w{2,}/g) || []) as string[])
+            const tw = new Set(((title || '').toLowerCase().match(/\w{2,}/g) || []) as string[])
+            if (!qw.size) return 0
+            let inter = 0
+            for (const w of qw) {
+                if (tw.has(w)) inter++
+            }
+            return inter / qw.size
+        }
+        const searchBases = [
+            'https://world.openfoodfacts.org/cgi/search.pl',
+            'https://in.openfoodfacts.org/cgi/search.pl'
+        ]
+        let products: any[] | null = null
+        for (const base of searchBases) {
+            try {
+                const params = new URLSearchParams({
+                    search_terms: query,
+                    search_simple: '1',
+                    action: 'process',
+                    json: '1',
+                    page_size: '20'
+                })
+                const res = await fetch(`${base}?${params}`)
+                if (!res.ok) continue
+                const data = await res.json()
+                const list = data?.products
+                if (Array.isArray(list) && list.length) {
+                    products = list
+                    break
+            }
+        } catch (e) {
+                console.warn('Open Food Facts (browser) search failed:', base, e)
+            }
+        }
+        if (!products?.length) return null
+
+        let best = products[0]
+        let bestScore = tokenScore(best.product_name || best.product_name_en || '')
+        for (const p of products) {
+            const name = p.product_name || p.product_name_en || ''
+            const sc = tokenScore(name)
+            if (p.code && sc > bestScore) {
+                bestScore = sc
+                best = p
+            }
+        }
+        if (!best?.code) return null
+
+        const code = String(best.code).replace(/\D/g, '') || String(best.code)
+        const apiUrl = `https://world.openfoodfacts.org/api/v0/product/${code}.json`
+        let prodRes: Response
+        try {
+            prodRes = await fetch(apiUrl)
+        } catch {
+            return null
+        }
+        if (!prodRes.ok) return null
+        const pj = await prodRes.json()
+        if (pj.status !== 1 || !pj.product) return null
+        const prod = pj.product
+        const n = prod.nutriments || {}
+        const num = (keys: string[]): number | null => {
+            for (const k of keys) {
+                const v = n[k]
+                if (v !== undefined && v !== null && v !== '') {
+                    const x = Number(v)
+                    if (!Number.isNaN(x)) return x
+                }
+            }
+            return null
+        }
+        const nutrition: Record<string, any> = {}
+        const cal = num(['energy-kcal_100g', 'energy-kcal'])
+        if (cal != null) nutrition.calories = cal
+        const protein = num(['proteins_100g', 'proteins'])
+        if (protein != null) nutrition.protein = protein
+        const fat = num(['fat_100g', 'fat'])
+        if (fat != null) nutrition.totalFat = fat
+        const carbs = num(['carbohydrates_100g', 'carbohydrates'])
+        if (carbs != null) nutrition.carbs = carbs
+        const sugars = num(['sugars_100g', 'sugars'])
+        if (sugars != null) nutrition.sugars = sugars
+        const fiber = num(['fiber_100g', 'fiber'])
+        if (fiber != null) nutrition.fiber = fiber
+        const sodium = num(['sodium_100g', 'sodium'])
+        if (sodium != null) nutrition.sodium = sodium
+
+        const product_url = `https://world.openfoodfacts.org/product/${code}`
+        const topMatch = {
+            product_name: prod.product_name || prod.product_name_en || best.product_name,
+            brand: typeof prod.brands === 'string' ? prod.brands.split(',')[0].trim() : null,
+            price: null,
+            rating: null,
+            image_url: prod.image_front_url || prod.image_url || best.image_front_small_url,
+            product_url,
+            source: 'Open Food Facts'
+        }
+        const productData = {
+            product_name: topMatch.product_name,
+            brand: topMatch.brand,
+            nutrition,
+            image_url: topMatch.image_url,
+            description: prod.generic_name || prod.product_name,
+            features: prod.ingredients_text
+                ? [
+                      `Ingredients: ${String(prod.ingredients_text).slice(0, 500)}${
+                          String(prod.ingredients_text).length > 500 ? '…' : ''
+                      }`
+                  ]
+                : [],
+            specifications: {
+                countries: prod.countries,
+                quantity: prod.quantity
+            }
+        }
+        const parsed = buildParsedFromScraperProduct(productData, topMatch)
+        console.log('✅ Open Food Facts (direct from browser):', topMatch.product_name)
+        return { parsed, text: JSON.stringify(prod, null, 2) }
+    }
+
+    type NameLookupResult =
+        | { ok: true; parsed: Record<string, any>; text: string }
+        | { ok: false; message: string }
+
+    /** Search Amazon + BigBasket by name, then fetch first result product page for nutrition */
+    const fetchNutritionByProductName = async (productName: string): Promise<NameLookupResult> => {
+        const searchResponse = await fetch(`${API_BASE_URL}/search-product-by-name`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ product_name: productName, max_results: 5 })
+        })
+        if (!searchResponse.ok) {
+            const errText = await searchResponse.text().catch(() => '')
+            console.error('search-product-by-name failed', searchResponse.status, errText)
+            return {
+                ok: false,
+                message: `Product search failed (HTTP ${searchResponse.status}). Check NEXT_PUBLIC_API_BASE_URL matches your backend (e.g. http://127.0.0.1:8765).`
+            }
+        }
+                        const searchResult = await searchResponse.json()
+        if (!searchResult.found || !searchResult.results?.length) {
+            console.warn('Backend search returned no results; trying Open Food Facts from browser…', searchResult)
+            const directOff = await fetchOffFromBrowser(productName)
+            if (directOff) {
+                return { ok: true, parsed: directOff.parsed, text: directOff.text }
+            }
+            const backendMsg =
+                typeof searchResult.error === 'string' && searchResult.error.trim()
+                    ? searchResult.error.trim()
+                    : 'No results from backend or browser Open Food Facts.'
+            return {
+                ok: false,
+                message: `${backendMsg} Set NEXT_PUBLIC_API_BASE_URL to your running API. Restart backend after git pull. If browser OFF is blocked (CORS), use a normal network/VPN.`
+            }
+        }
+
+        const topMatch = searchResult.results[0]
+        if (!topMatch.product_url) {
+                                        const parsed: Record<string, any> = {
+                product_name: topMatch.product_name,
+                brand: topMatch.brand,
+                price: topMatch.price,
+                rating: topMatch.rating,
+                image_url: topMatch.image_url,
+                                            product_url: topMatch.product_url,
+                                            source: topMatch.source,
+                                            from_web_scraping: true,
+                categories: []
+            }
+            return { ok: true, parsed, text: JSON.stringify(topMatch, null, 2) }
+        }
+
+        const detailsResponse = await fetch(
+            `${API_BASE_URL}/get-product-details?product_url=${encodeURIComponent(topMatch.product_url)}`,
+            { method: 'GET' }
+        )
+        if (!detailsResponse.ok) {
+                            const parsed: Record<string, any> = {
+                                product_name: topMatch.product_name,
+                                brand: topMatch.brand,
+                                price: topMatch.price,
+                                rating: topMatch.rating,
+                                image_url: topMatch.image_url,
+                                product_url: topMatch.product_url,
+                                source: topMatch.source,
+                                from_web_scraping: true,
+                categories: [],
+                scrape_note: 'Could not load full product page; showing search result only.'
+            }
+            return { ok: true, parsed, text: JSON.stringify(topMatch, null, 2) }
+        }
+        const detailsResult = await detailsResponse.json()
+        const productData = detailsResult.product
+        const parsed = buildParsedFromScraperProduct(productData, topMatch)
+        return { ok: true, parsed, text: JSON.stringify(productData, null, 2) }
+    }
+
+    const processFile = async (file: File, id: string, userProductName: string) => {
         // mark current processing id
         processingIdRef.current = id
         setItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: 'processing', progress: 0 } : it)))
@@ -341,312 +553,50 @@ export default function ImageUploadExtract() {
                 }
             }
         } catch (e) {
-            // ignore barcode detection failures, continue to OCR
+            // ignore barcode detection failures, continue to marketplace search by name
         }
 
         try {
-            // Extract text using Google Cloud Vision API (primary) with OCR.space fallback
-            setItems((prev) => prev.map((it) => (it.id === id ? { ...it, progress: 30 } : it)))
+            // Use Amazon India + BigBasket scrapers with the name the user typed (no OCR on label)
+            console.log(`🔍 Looking up nutrition via marketplace scrapers for: "${userProductName}"`)
+            setItems((prev) => prev.map((it) => (it.id === id ? { ...it, progress: 40 } : it)))
 
-            const formData = new FormData()
-            formData.append('file', file)
-
-            let text = ''
-            let apiUsed: string = 'unknown'
-            try {
-                const ocrResponse = await fetch(`${API_BASE_URL}/extract-text`, {
-                    method: 'POST',
-                    body: formData
-                })
-
-                if (ocrResponse.ok) {
-                    const ocrResult = await ocrResponse.json()
-                    text = ocrResult.extracted_text || ''
-                    apiUsed = ocrResult.api_used || 'unknown'
-                    const visionUsage = ocrResult.vision_usage || {}
-                    console.log(`📊 Text extraction completed using ${apiUsed}. Google Cloud Vision API units used: ${visionUsage.units_used || 0}/${visionUsage.units_limit || 1000}`)
-                } else {
-                    // server responded with error (but fetch succeeded) - log and continue with fallback
-                    let errMsg = `OCR failed: ${ocrResponse.status} ${ocrResponse.statusText}`
-                    try {
-                        const errBody = await ocrResponse.json()
-                        if (errBody && (errBody.detail || errBody.error)) errMsg = String(errBody.detail || errBody.error)
-                    } catch (e) { }
-                    console.error('Google Cloud Vision API request failed (server):', errMsg)
-                    // leave text as empty so parseNutrition + filename fallback will run
-                }
-            } catch (fetchErr) {
-                // network-level failure (connection refused etc) - continue with local fallback
-                console.error('Google Cloud Vision API fetch failed (network):', fetchErr)
-                text = ''
-            }
-
-            // Also try to detect product labels and barcode using Google Cloud Vision API (uses 3 units)
-            setItems((prev) => prev.map((it) => (it.id === id ? { ...it, progress: 50 } : it)))
-            let detectionResult: any = null
-            try {
-                const detectFormData = new FormData()
-                detectFormData.append('file', file)
-                const detectResponse = await fetch(`${API_BASE_URL}/detect-product`, {
-                    method: 'POST',
-                    body: detectFormData
-                })
-                if (detectResponse.ok) {
-                    detectionResult = await detectResponse.json()
-                    console.log('🔍 Product detection results:', detectionResult)
-                    console.log('📊 Barcode in response:', detectionResult?.barcode || 'NOT FOUND')
-                    console.log('🏷️ Brand in response:', detectionResult?.detected_brand || 'NOT FOUND')
-                    console.log('🌐 Web entities count:', detectionResult?.web_entities?.length || 0)
-                    console.log('📝 Detected text:', detectionResult?.detected_text_full?.substring(0, 300) || 'None')
-                }
-            } catch (e) {
-                // Product detection is optional, continue without it
-                console.log('Product detection skipped:', e)
-            }
-
-            // NEW APPROACH: Extract product name from OCR text first, then search Amazon/BigBasket
-            // This is MORE RELIABLE than barcode detection which often fails
-            console.log('📝 Extracting product name from OCR text...')
-
-            // Extract product name from detected text
-            let extractedProductName = ''
-            if (detectionResult && detectionResult.detected_text_full) {
-                const lines = detectionResult.detected_text_full.split('\n').map((l: string) => l.trim()).filter(Boolean)
-                // Look for product names in first 5 lines (usually at top of package)
-                const topLines = lines.slice(0, 5)
-                for (const line of topLines) {
-                    // Skip common non-product text
-                    const lower = line.toLowerCase()
-                    if (lower.includes('fssai') || lower.includes('authority') ||
-                        lower.includes('license') || lower.includes('office') ||
-                        lower.length < 3 || /^\d+$/.test(line)) {
-                        continue
-                    }
-                    // Look for lines with product-like names (uppercase, 2-6 words, or mixed case with capitals)
-                    if ((line === line.toUpperCase() || /[A-Z]/.test(line)) &&
-                        line.split(' ').length >= 2 &&
-                        line.split(' ').length <= 8 &&
-                        line.length >= 5) {
-                        extractedProductName = line
-                        console.log('🎯 Extracted product name from OCR:', line)
-                        break
-                    }
-                }
-            }
-
-            // Also try with detected brand if we found one
-            if (!extractedProductName && detectionResult?.detected_brand) {
-                extractedProductName = detectionResult.detected_brand
-                console.log('🏷️ Using detected brand as product name:', extractedProductName)
-            }
-
-            // NEW: Search Amazon India and BigBasket for the product
-            if (extractedProductName && extractedProductName.length >= 3) {
-                console.log(`🔍 Searching Amazon India & BigBasket for: "${extractedProductName}"`)
-                setItems((prev) => prev.map((it) => (it.id === id ? { ...it, progress: 70 } : it)))
-
-                try {
-                    const searchResponse = await fetch(`${API_BASE_URL}/search-product-by-name`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            product_name: extractedProductName,
-                            max_results: 3
-                        })
-                    })
-
-                    if (searchResponse.ok) {
-                        const searchResult = await searchResponse.json()
-                        console.log('🛒 Search results:', searchResult)
-
-                        if (searchResult.found && searchResult.results && searchResult.results.length > 0) {
-                            // Use top match (highest confidence)
-                            const topMatch = searchResult.results[0]
-                            console.log(`✅ TOP MATCH: ${topMatch.product_name} from ${topMatch.source} (₹${topMatch.price || 'N/A'})`)
-
-                            setItems((prev) => prev.map((it) => (it.id === id ? { ...it, progress: 85 } : it)))
-
-                            // Get detailed product info including nutrition
-                            if (topMatch.product_url) {
-                                try {
-                                    const detailsResponse = await fetch(`${API_BASE_URL}/get-product-details?product_url=${encodeURIComponent(topMatch.product_url)}`)
-
-                                    if (detailsResponse.ok) {
-                                        const detailsResult = await detailsResponse.json()
-                                        const productData = detailsResult.product
-
-                                        console.log('📦 Got complete product details:', productData.product_name)
-                                        if (productData.nutrition) {
-                                            console.log('✅ Nutrition data included:', Object.keys(productData.nutrition))
-                                        }
-
-                                        // Build parsed object with nutrition
-                                        const parsed: Record<string, any> = {
-                                            product_name: productData.product_name,
-                                            brand: productData.brand,
-                                            price: productData.price,
-                                            rating: productData.rating,
-                                            protein: productData.nutrition?.protein || null,
-                                            fat: productData.nutrition?.totalFat || null,
-                                            carbs: productData.nutrition?.carbs || null,
-                                            sugar: productData.nutrition?.sugars || null,
-                                            calories: productData.nutrition?.calories || null,
-                                            fiber: productData.nutrition?.fiber || null,
-                                            sodium: productData.nutrition?.sodium || null,
-                                            image_url: productData.image_url || topMatch.image_url,
-                                            product_url: topMatch.product_url,
-                                            source: topMatch.source,
-                                            description: productData.description,
-                                            features: productData.features || [],
-                                            from_web_scraping: true,
-                                            categories: [] as string[]
-                                        }
-
-                                        // Add health categories
-                                        if (parsed.protein && parsed.protein >= 10) parsed.categories.push('High protein')
-                                        if (parsed.fat && parsed.fat >= 17.5) parsed.categories.push('High fat')
-                                        if (parsed.sugar && parsed.sugar >= 22.5) parsed.categories.push('High sugar')
-
-                                        setItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: 'done', progress: 100, text: JSON.stringify(productData, null, 2), parsed } : it)))
-                                        console.log(`💾 Product data ready from ${topMatch.source} (WEB SCRAPING)`)
-
-                                        // Keep parsed result visible; user can review then click Save.
-                                        return
-                                    }
-                                } catch (e) {
-                                    console.error('Failed to get product details:', e)
-                                }
-                            }
-
-                            // If couldn't get detailed info, use basic search result
-                            const parsed: Record<string, any> = {
-                                product_name: topMatch.product_name,
-                                brand: topMatch.brand,
-                                price: topMatch.price,
-                                rating: topMatch.rating,
-                                image_url: topMatch.image_url,
-                                product_url: topMatch.product_url,
-                                source: topMatch.source,
-                                from_web_scraping: true,
-                                categories: []
-                            }
-
-                            setItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: 'done', progress: 100, text: JSON.stringify(topMatch, null, 2), parsed } : it)))
-                            console.log(`💾 Basic product data from ${topMatch.source}`)
-
-                            return
-                        } else {
-                            console.log('⚠️ No products found in Amazon/BigBasket search, will use OCR fallback')
-                        }
-                    }
-                } catch (e) {
-                    console.error('Product search failed:', e)
-                }
-            } else {
-                console.log('⚠️ Could not extract product name from image, will use OCR fallback')
-            }
-
-            setItems((prev) => prev.map((it) => (it.id === id ? { ...it, progress: 80 } : it)))
-            const parsed = parseNutrition(text)
-
-            // Enhance parsed data with Google Cloud Vision API detection results
-            if (detectionResult) {
-                // Store barcode if detected
-                if (detectionResult.barcode) {
-                    parsed.barcode = detectionResult.barcode
-                }
-
-                // Priority 0: Extract product name from detected text (most accurate for product names on packaging)
-                if (detectionResult.detected_text_full && !parsed.product_name) {
-                    const lines = detectionResult.detected_text_full.split('\\n').map((l: string) => l.trim()).filter(Boolean)
-                    // Look for product names in first 5 lines (usually at top of package)
-                    const topLines = lines.slice(0, 5)
-                    for (const line of topLines) {
-                        // Skip common non-product text
-                        const lower = line.toLowerCase()
-                        if (lower.includes('fssai') || lower.includes('authority') ||
-                            lower.includes('license') || lower.includes('office') ||
-                            lower.length < 3 || /^\\d+$/.test(line)) {
-                            continue
-                        }
-                        // Look for lines with product-like names (uppercase, 2-6 words)
-                        if (line === line.toUpperCase() && line.split(' ').length >= 2 && line.split(' ').length <= 6) {
-                            parsed.product_name = line
-                            console.log('🎯 Extracted product name from OCR:', line)
-                            break
-                        }
-                    }
-                }
-
-                // Priority 1: Use detected brand as product name base
-                if (detectionResult.detected_brand) {
-                    if (!parsed.product_name) {
-                        parsed.product_name = detectionResult.detected_brand
-                    } else if (parsed.product_name && parsed.product_name.length < 15) {
-                        // If OCR gave short generic name, prepend brand
-                        parsed.product_name = `${detectionResult.detected_brand} ${parsed.product_name}`
-                    }
-                }
-
-                // Priority 2: Use web entities (known products from Google's database)
-                if (detectionResult.web_entities && detectionResult.web_entities.length > 0) {
-                    const productEntity = detectionResult.web_entities.find((e: any) =>
-                        e.description &&
-                        e.description.length > 3 &&
-                        e.description.length < 60 &&
-                        e.score > 0.5
+            const scraped = await fetchNutritionByProductName(userProductName.trim())
+            if (scraped.ok) {
+                setItems((prev) =>
+                    prev.map((it) =>
+                        it.id === id
+                            ? {
+                                  ...it,
+                    status: 'done',
+                    progress: 100,
+                                  text: scraped.text,
+                                  parsed: scraped.parsed,
+                                  productName: userProductName.trim()
+                              }
+                            : it
                     )
-                    if (productEntity && !parsed.product_name) {
-                        parsed.product_name = productEntity.description
-                    }
-                }
-
-                if (detectionResult.primary_category) {
-                    parsed.detected_category = detectionResult.primary_category
-                }
-
-                if (detectionResult.labels && detectionResult.labels.length > 0) {
-                    parsed.vision_labels = detectionResult.labels.slice(0, 5).map((l: any) => l.description)
-                    // Priority 3: Use specific food labels if still no name
-                    if (!parsed.product_name && detectionResult.labels.length > 0) {
-                        const specificLabels = detectionResult.labels.filter((l: any) =>
-                            l.description &&
-                            l.description.length > 4 &&
-                            !['Food', 'Ingredient', 'Recipe', 'Cuisine', 'Dish', 'Snack', 'Product'].includes(l.description)
-                        )
-                        if (specificLabels.length > 0) {
-                            parsed.product_name = specificLabels[0].description
-                        }
-                    }
-                }
-                parsed.detection_api = apiUsed
+                )
+                console.log('✅ Product data from Amazon/BigBasket scrapers')
+                return
             }
 
-            // If still no product name, use filename as fallback
-            if (!parsed.product_name) {
-                parsed.product_name = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ')
-            }
-
-            console.log('✅ Extraction complete! Parsed nutrition data:', parsed)
-            console.log('📦 Product Name Detected:', parsed.product_name || 'Not found')
-            console.log('📊 Barcode:', detectionResult?.barcode || parsed.barcode || 'Not detected')
-            console.log('🏷️ Brand:', detectionResult?.detected_brand || 'Not detected')
-            console.log('🌐 Web Entities:', detectionResult?.web_entities?.slice(0, 3).map((e: any) => e.description).join(', ') || 'None')
-            console.log('�🍎 Nutrition Values:', {
-                calories: parsed.calories,
-                protein: parsed.protein,
-                carbs: parsed.carbs,
-                fat: parsed.fat,
-                sugar: parsed.sugar,
-                fiber: parsed.fiber,
-                sodium: parsed.sodium
-            })
-            setItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: 'done', progress: 100, text, parsed } : it)))
-
-            // Keep parsed result visible; user can review then click Save.
+            setItems((prev) =>
+                prev.map((it) =>
+                    it.id === id
+                        ? {
+                              ...it,
+                              status: 'error',
+                              progress: 0,
+                              error: scraped.message
+                          }
+                        : it
+                )
+            )
+            return
         } catch (err: any) {
-            const msg = err?.message || String(err) || 'Vision API processing failed'
-            console.error('Google Cloud Vision API processing error', err)
+            const msg = err?.message || String(err) || 'Marketplace lookup failed'
+            console.error('Marketplace lookup error', err)
             setItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: 'error', error: msg } : it)))
         } finally {
             processingIdRef.current = null
@@ -723,7 +673,7 @@ export default function ImageUploadExtract() {
 
                 const payload = {
                     name: productName,
-                    brand: undefined,
+                    brand: it.parsed?.brand,
                     calories: it.parsed?.calories || undefined,
                     protein_g: it.parsed?.protein || it.parsed?.protein_g || undefined,
                     carbs_g: it.parsed?.carbs || it.parsed?.carbs_g || undefined,
@@ -740,7 +690,7 @@ export default function ImageUploadExtract() {
                 const completePayload = {
                     barcode: null,
                     product_name: productName,
-                    brand: payload.brand || null,
+                    brand: (typeof it.parsed?.brand === 'string' ? it.parsed.brand : null) || payload.brand || null,
                     manufacturer: null,
                     region: null,
                     weight: null,
@@ -814,26 +764,6 @@ export default function ImageUploadExtract() {
 
     const onDragOver = (e: React.DragEvent) => { e.preventDefault() }
 
-    const asNumber = (v: any): number | null => {
-        if (v === null || v === undefined || v === '') return null
-        if (typeof v === 'number' && Number.isFinite(v)) return v
-        if (typeof v === 'string') {
-            const cleaned = v.replace(/[^\d.,-]/g, '').replace(',', '.')
-            const n = parseFloat(cleaned)
-            return Number.isFinite(n) ? n : null
-        }
-        return null
-    }
-
-    const getMetric = (parsed: Record<string, any> | undefined, keys: string[]): number | null => {
-        if (!parsed) return null
-        for (const k of keys) {
-            const n = asNumber(parsed[k])
-            if (n !== null) return n
-        }
-        return null
-    }
-
     const humanSize = (bytes: number) => {
         if (!bytes) return '0 B'
         const units = ['B', 'KB', 'MB', 'GB']
@@ -895,14 +825,14 @@ export default function ImageUploadExtract() {
                             </div>
 
                             <div style={{ textAlign: 'center', padding: '0 1rem' }}>
-                                <div style={{ fontWeight: 700, fontSize: '1.25rem', marginBottom: 8, color: '#e27575' }}>Thank you for contributing to our community</div>
-                                <div style={{ fontSize: 14, color: '#eca6a4' }}>We’ve received your contribution — it will appear after review.</div>
+                                    <div style={{ fontWeight: 700, fontSize: '1.25rem', marginBottom: 8, color: '#1a1a1a' }}>Thank you for contributing to our community</div>
+                                    <div style={{ fontSize: 14, color: '#333' }}>We’ve received your contribution — it will appear after review.</div>
                             </div>
                         </div>
                     ) : (
                         <div style={{ display: showThankYou ? 'none' : 'block' }}>
-                            <h2 style={{ margin: 0, marginBottom: 12 }}>Upload Files</h2>
-                            <p style={{ marginTop: 0, marginBottom: 18, color: '#eca6a4' }}>Upload your user-downloadable files.</p>
+                            <h2 style={{ margin: 0, marginBottom: 12, color: '#1a1a1a' }}>Upload Files</h2>
+                            <p style={{ marginTop: 0, marginBottom: 18, color: '#333' }}>Upload your user-downloadable files.</p>
 
                             <div
                                 onDrop={onDrop}
@@ -910,19 +840,19 @@ export default function ImageUploadExtract() {
                                 style={{ borderRadius: 12, background: '#f6f6f6', padding: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
                             >
                                 <div style={{ width: 64, height: 64, borderRadius: 12, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(0,0,0,0.03)' }}>
-                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 16V8" stroke="#e27575" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 12l4-4 4 4" stroke="#e27575" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M21 15v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2" stroke="#e27575" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 16V8" stroke="#444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 12l4-4 4 4" stroke="#444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M21 15v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2" stroke="#444" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                                 </div>
-                                <div style={{ fontSize: 16, fontWeight: 600, color: '#e27575' }}>Drop your files here or browse</div>
-                                <div style={{ fontSize: 12, color: '#eca6a4' }}>Max file size up to 1 GB</div>
+                                <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>Drop your files here or browse</div>
+                                <div style={{ fontSize: 12, color: '#444' }}>Max file size up to 1 GB</div>
                                 <div style={{ marginTop: 8 }}>
                                     <input ref={browseInputRef} id="browse-files-input" type="file" accept="image/*,application/pdf" multiple onChange={onFiles} style={{ display: 'none' }} />
-                                    <button onClick={() => browseInputRef.current?.click()} style={{ marginTop: 8, padding: '8px 14px', borderRadius: 10, background: '#fff', border: '1px solid #eee' }}>Browse files</button>
+                                    <button onClick={() => browseInputRef.current?.click()} style={{ marginTop: 8, padding: '8px 14px', borderRadius: 10, background: '#fff', border: '1px solid #eee', color: '#1a1a1a' }}>Browse files</button>
                                 </div>
                             </div>
 
                             <div style={{ marginTop: 18 }}>
                                 {items.length === 0 && (
-                                    <div style={{ padding: 18, borderRadius: 12, background: '#fff', border: '1px solid #f0f0f0', textAlign: 'center', color: '#eca6a4' }}>No files uploaded yet.</div>
+                                    <div style={{ padding: 18, borderRadius: 12, background: '#fff', border: '1px solid #f0f0f0', textAlign: 'center', color: '#555' }}>No files uploaded yet.</div>
                                 )}
 
                                 {items.map((it) => (
@@ -931,17 +861,17 @@ export default function ImageUploadExtract() {
                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '12px 0' }}>
                                                 <img src="/thankyou.jpeg" alt="thankyou" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 12, marginBottom: 12 }} />
                                                 <div style={{ textAlign: 'center' }}>
-                                                    <div style={{ fontWeight: 700, color: '#e27575' }}>Thank you for contributing to our community</div>
-                                                    <div style={{ fontSize: 13, color: '#eca6a4', marginTop: 6 }}>We’ve received your contribution — it will appear after review.</div>
+                                                    <div style={{ fontWeight: 700, color: '#1a1a1a' }}>Thank you for contributing to our community</div>
+                                                    <div style={{ fontSize: 13, color: '#333', marginTop: 6 }}>We’ve received your contribution — it will appear after review.</div>
                                                 </div>
                                             </div>
                                         ) : (
                                             <>
-                                                <div style={{ width: 44, height: 44, borderRadius: 8, background: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#e27575' }}>{it.name.split('.').pop()?.toUpperCase() || 'IMG'}</div>
+                                                <div style={{ width: 44, height: 44, borderRadius: 8, background: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#1a1a1a' }}>{it.name.split('.').pop()?.toUpperCase() || 'IMG'}</div>
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                        <div style={{ fontWeight: 600, color: '#e27575' }}>{it.name}</div>
-                                                        <div style={{ fontSize: 12, color: '#eca6a4' }}>{humanSize(it.size || 0)}</div>
+                                                        <div style={{ fontWeight: 600, color: '#1a1a1a' }}>{it.name}</div>
+                                                        <div style={{ fontSize: 12, color: '#555' }}>{humanSize(it.size || 0)}</div>
                                                     </div>
 
                                                     <div style={{ marginTop: 8 }}>
@@ -949,25 +879,48 @@ export default function ImageUploadExtract() {
                                                             <div style={{ width: `${it.progress}%`, height: '100%', background: '#e27575', transition: 'width 300ms' }} />
                                                         </div>
                                                     </div>
-                                                    {it.parsed && (
+                                                    <div style={{ marginTop: 8 }}>
+                                                        <label htmlFor={`product-name-${it.id}`} style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginBottom: 4 }}>Product name</label>
+                                                        <input
+                                                            id={`product-name-${it.id}`}
+                                                            type="text"
+                                                            placeholder="e.g. Britannia Marie Gold 200g"
+                                                            disabled={it.status === 'processing'}
+                                                            value={it.productName ?? (it.parsed?.product_name || it.name?.replace(/\.[^/.]+$/, '') || '')}
+                                                            onChange={(e) => setItems(prev => prev.map(x => x.id === it.id ? { ...x, productName: e.target.value } : x))}
+                                                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #eee', fontSize: 14, color: '#1a1a1a' }}
+                                                        />
+                                                    </div>
+                                                    {it.status === 'error' && it.error && (
+                                                        <div style={{ marginTop: 8, fontSize: 13, color: '#c44' }}>{it.error}</div>
+                                                    )}
+                                                    {it.parsed && it.status === 'done' && (
                                                         <>
-                                                            <div style={{ marginTop: 8 }}>
-                                                                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#e27575', marginBottom: 4 }}>Product name</label>
-                                                                <input
-                                                                    type="text"
-                                                                    placeholder="Enter product name (e.g. Maggi Noodles)"
-                                                                    value={it.productName ?? (it.parsed?.product_name || it.name?.replace(/\.[^/.]+$/, '') || '')}
-                                                                    onChange={(e) => setItems(prev => prev.map(x => x.id === it.id ? { ...x, productName: e.target.value } : x))}
-                                                                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #eee', fontSize: 14, color: '#eca6a4' }}
-                                                                />
+                                                            <div style={{ marginTop: 10, fontSize: 12, fontWeight: 600, color: '#1a1a1a' }}>
+                                                                {it.parsed.source ? `Source: ${it.parsed.source}` : 'Product details'}
+                                                                {it.parsed.product_url && (
+                                                                    <a href={it.parsed.product_url} target="_blank" rel="noreferrer" style={{ marginLeft: 8, fontWeight: 500, color: '#1a1a1a', textDecoration: 'underline' }}>View product page</a>
+                                                                )}
                                                             </div>
-                                                            <div style={{ marginTop: 8, fontSize: 12, color: '#eca6a4' }}>
-                                                                Calories: {getMetric(it.parsed, ['calories', 'energy_kcal', 'energy']) ?? 'NA'} |
-                                                                Protein: {getMetric(it.parsed, ['protein', 'proteins', 'protein_g']) ?? 'NA'}g |
-                                                                Carbs: {getMetric(it.parsed, ['carbs', 'carbohydrates', 'total_carbohydrates', 'carbs_g']) ?? 'NA'}g |
-                                                                Fat: {getMetric(it.parsed, ['fat', 'total_fat', 'fat_g']) ?? 'NA'}g |
-                                                                Sugar: {getMetric(it.parsed, ['sugar', 'total_sugars', 'sugar_g']) ?? 'NA'}g
-                                                            </div>
+                                                            {it.parsed.brand && <div style={{ marginTop: 4, fontSize: 12, color: '#333' }}>Brand: {it.parsed.brand}</div>}
+                                                            {it.parsed.description && (
+                                                                <p style={{ marginTop: 6, fontSize: 12, color: '#333', lineHeight: 1.45 }}>{String(it.parsed.description).slice(0, 400)}{String(it.parsed.description).length > 400 ? '…' : ''}</p>
+                                                            )}
+                                                            {Array.isArray(it.parsed.features) && it.parsed.features.length > 0 && (
+                                                                <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, color: '#333' }}>
+                                                                    {it.parsed.features.slice(0, 8).map((f: string, i: number) => (
+                                                                        <li key={i}>{f}</li>
+                                                                    ))}
+                                                                </ul>
+                                                            )}
+                                                            {it.parsed.specifications && typeof it.parsed.specifications === 'object' && Object.keys(it.parsed.specifications).length > 0 && (
+                                                                <div style={{ marginTop: 8, fontSize: 11, color: '#333' }}>
+                                                                    {Object.entries(it.parsed.specifications as Record<string, string>).slice(0, 12).map(([k, v]) => (
+                                                                        <div key={k}><strong style={{ color: '#1a1a1a' }}>{k}:</strong> {v}</div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            {it.parsed.scrape_note && <div style={{ marginTop: 6, fontSize: 11, color: '#555' }}>{it.parsed.scrape_note}</div>}
                                                         </>
                                                     )}
                                                 </div>

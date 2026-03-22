@@ -1,7 +1,7 @@
 import Head from 'next/head'
 import Hero from '../components/Hero'
 import CurvedLoop from '../components/CurvedLoop'
-import AutoZoomGallery from '../components/AutoZoomGallery'
+// import AutoZoomGallery from '../components/AutoZoomGallery'
 import ScrollPinnedSection from '../components/ScrollPinnedSection'
 import ImageUploadExtract from '../components/ImageUploadExtract'
 
@@ -27,8 +27,8 @@ export default function Home() {
                     <ImageUploadExtract />
                 </section>
 
-                {/* Fourth section: GSAP auto-zoom bento gallery */}
-                <AutoZoomGallery />
+                {/* Fourth section: GSAP auto-zoom bento gallery — commented out (restore import + <AutoZoomGallery /> to show images) */}
+                {/* <AutoZoomGallery /> */}
 
                 {/* Fifth section: Scroll-pinned section with transitioning images */}
                 <ScrollPinnedSection />
@@ -46,7 +46,7 @@ export default function Home() {
                     }}
                 />
 
-                {/* Firebase upload removed — using client-side OCR only (ImageUploadExtract) */}
+                {/* Upload: back-of-pack photo + product name → Next → API (barcode/OFF, then Amazon/BigBasket scraper) */}
             </main>
         </>
     )

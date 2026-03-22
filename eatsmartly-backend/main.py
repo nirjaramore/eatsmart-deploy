@@ -2,7 +2,7 @@
 EatSmartly Backend - FastAPI Application with Multi-Agent System.
 Main entry point for the barcode food analyzer API.
 """
-from fastapi import FastAPI, HTTPException, status, UploadFile, File, Request
+from fastapi import FastAPI, HTTPException, status, UploadFile, File, Request, Query
 from fastapi.staticfiles import StaticFiles
 import shutil
 from fastapi.middleware.cors import CORSMiddleware
@@ -1630,10 +1630,8 @@ class ProductSearchResponse(BaseModel):
 @app.post("/search-product-by-name", response_model=ProductSearchResponse)
 async def search_product_by_name(request: ProductSearchRequest):
     """
-    Search for product across Amazon India and BigBasket by name
-    This is the NEW RELIABLE WAY to find products using OCR-extracted text
-    
-    Use this after extracting text from product image front label
+    Search Amazon India, BigBasket, and Open Food Facts by name (parallel).
+    Open Food Facts is the reliable fallback when marketplaces block bots or time out.
     """
     try:
         logger.info(f"\n{'='*60}")
@@ -1645,36 +1643,70 @@ async def search_product_by_name(request: ProductSearchRequest):
         # Import scrapers
         from scrapers import (
             search_amazon_india,
-            search_bigbasket
+            search_bigbasket,
+            search_open_food_facts,
         )
+        from scrapers.openfoodfacts_scraper import relevance_score as _name_relevance_score
         
+        from concurrent.futures import ThreadPoolExecutor
+
         all_results = []
         sources_searched = []
-        
-        # Search Amazon India
-        logger.info("📦 Searching Amazon India...")
-        try:
-            amazon_results = search_amazon_india(request.product_name, request.max_results)
-            if amazon_results:
-                all_results.extend(amazon_results)
-                sources_searched.append("Amazon India")
-                logger.info(f"✅ Found {len(amazon_results)} results from Amazon")
-        except Exception as e:
-            logger.error(f"❌ Amazon search failed: {e}")
-        
-        # Search BigBasket
-        logger.info("🛒 Searching BigBasket...")
-        try:
-            bigbasket_results = search_bigbasket(request.product_name, request.max_results)
-            if bigbasket_results:
-                all_results.extend(bigbasket_results)
-                sources_searched.append("BigBasket")
-                logger.info(f"✅ Found {len(bigbasket_results)} results from BigBasket")
-        except Exception as e:
-            logger.error(f"❌ BigBasket search failed: {e}")
-        
-        # Sort by confidence score
-        all_results.sort(key=lambda x: x.get('confidence', 0), reverse=True)
+
+        qname = (request.product_name or "").strip()
+        mx = request.max_results
+
+        def _safe_amazon():
+            try:
+                return search_amazon_india(qname, mx)
+            except Exception as e:
+                logger.error(f"❌ Amazon search failed: {e}")
+                return []
+
+        def _safe_bigbasket():
+            try:
+                return search_bigbasket(qname, mx)
+            except Exception as e:
+                logger.error(f"❌ BigBasket search failed: {e}")
+                return []
+
+        def _safe_off():
+            try:
+                return search_open_food_facts(qname, mx)
+            except Exception as e:
+                logger.error(f"❌ Open Food Facts search failed: {e}")
+                return []
+
+        logger.info("📦 Searching Amazon India, BigBasket & Open Food Facts (parallel)...")
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            fut_a = pool.submit(_safe_amazon)
+            fut_b = pool.submit(_safe_bigbasket)
+            fut_o = pool.submit(_safe_off)
+            amazon_results = fut_a.result()
+            bigbasket_results = fut_b.result()
+            off_results = fut_o.result()
+
+        if amazon_results:
+            all_results.extend(amazon_results)
+            sources_searched.append("Amazon India")
+            logger.info(f"✅ Amazon India: {len(amazon_results)} result(s)")
+        if bigbasket_results:
+            all_results.extend(bigbasket_results)
+            sources_searched.append("BigBasket")
+            logger.info(f"✅ BigBasket: {len(bigbasket_results)} result(s)")
+        if off_results:
+            all_results.extend(off_results)
+            sources_searched.append("Open Food Facts")
+            logger.info(f"✅ Open Food Facts: {len(off_results)} result(s)")
+
+        # Best matches to the user's typed name first (then source confidence)
+        all_results.sort(
+            key=lambda x: (
+                _name_relevance_score(x.get("product_name") or "", qname),
+                x.get("confidence", 0),
+            ),
+            reverse=True,
+        )
         
         logger.info(f"\n📊 TOTAL RESULTS: {len(all_results)} from {len(sources_searched)} sources")
         logger.info(f"Sources: {', '.join(sources_searched)}")
@@ -1686,7 +1718,12 @@ async def search_product_by_name(request: ProductSearchRequest):
                 results=[],
                 total_found=0,
                 sources_searched=sources_searched,
-                error="Product not found in any source"
+                error=(
+                    "Product not found in any source "
+                    f"(Amazon: {len(amazon_results)}, BigBasket: {len(bigbasket_results)}, "
+                    f"Open Food Facts: {len(off_results)}). "
+                    "If OFF is 0, check backend logs — OFF may have returned HTML instead of JSON."
+                ),
             )
         
         # Log top match
@@ -1718,8 +1755,10 @@ async def search_product_by_name(request: ProductSearchRequest):
         )
 
 
-@app.post("/get-product-details")
-async def get_product_details(product_url: str):
+@app.api_route("/get-product-details", methods=["GET", "POST"])
+async def get_product_details(
+    product_url: str = Query(..., description="Full URL to product page (Amazon.in or BigBasket)"),
+):
     """
     Get complete product details including nutrition from product page URL
     
@@ -1731,7 +1770,8 @@ async def get_product_details(product_url: str):
         
         from scrapers import (
             get_amazon_product_details,
-            get_bigbasket_product_details
+            get_bigbasket_product_details,
+            get_open_food_facts_product_details,
         )
         
         product_details = None
@@ -1743,10 +1783,13 @@ async def get_product_details(product_url: str):
         elif 'bigbasket.com' in product_url:
             logger.info("Using BigBasket scraper...")
             product_details = get_bigbasket_product_details(product_url)
+        elif 'openfoodfacts.org' in product_url.lower():
+            logger.info("Using Open Food Facts API...")
+            product_details = get_open_food_facts_product_details(product_url)
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Unsupported product URL. Only Amazon India and BigBasket are supported."
+                detail="Unsupported product URL. Use Amazon India, BigBasket, or Open Food Facts."
             )
         
         if not product_details:
@@ -2146,11 +2189,12 @@ async def list_food_images(limit: int = 200, offset: int = 0, image_type: Option
 
 if __name__ == "__main__":
     import uvicorn
-    
+
+    logger.info(f"Starting server on http://{settings.HOST}:{settings.PORT}")
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",  # Allow connections from network (not just localhost)
-        port=3000,
+        host=settings.HOST,
+        port=settings.PORT,
         reload=False,  # Disable reload to prevent shutdown issues
         log_level=settings.LOG_LEVEL.lower()
     )

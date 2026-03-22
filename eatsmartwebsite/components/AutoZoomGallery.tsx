@@ -112,7 +112,7 @@ export default function AutoZoomGallery() {
         // Scroll handler to hide bottom card on any scroll
         const handleScroll = () => {
             if (bottomCard && isAnimating) {
-                const cardOpacity = gsap.getProperty(bottomCard, 'opacity')
+                const cardOpacity = Number(gsap.getProperty(bottomCard, 'opacity'))
                 if (cardOpacity > 0) {
                     gsap.to(bottomCard, {
                         y: 100,
@@ -127,6 +127,12 @@ export default function AutoZoomGallery() {
         window.addEventListener('scroll', handleScroll, { passive: true })
 
         const animateItem = (index: number) => {
+            if (!bottomCard) {
+                isAnimating = false
+                isAnimatingRef.current = false
+                return
+            }
+            const bottomCardEl = bottomCard as HTMLElement
             isAnimating = true
             isAnimatingRef.current = true
             const item = galleryItems[index] as HTMLElement
@@ -175,24 +181,27 @@ export default function AutoZoomGallery() {
                     ease: 'power2.inOut'
                 })
                 // Show bottom card with slide up animation
-                .to(bottomCard, {
+                .to(bottomCardEl, {
                     y: 0,
                     opacity: 1,
                     duration: 0.6,
                     ease: 'power2.out'
                 }, '-=0.2')
-                // Auto-scroll the text content
-                .to(bottomCard.querySelector(`.${styles.bottomCardContent}`), {
+            const cardContent = bottomCardEl.querySelector<HTMLElement>(`.${styles.bottomCardContent}`)
+            if (cardContent) {
+                tl.to(cardContent, {
                     scrollTop: '+=150',
                     duration: 3,
                     ease: 'power1.inOut',
                     repeat: 1,
                     yoyo: true
                 }, '+=0.5')
+            }
+            tl
                 // Hold for viewing
                 .to({}, { duration: 1.5 })
                 // Hide bottom card
-                .to(bottomCard, {
+                .to(bottomCardEl, {
                     y: 100,
                     opacity: 0,
                     duration: 0.5,

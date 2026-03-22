@@ -8,30 +8,142 @@ import re
 import time
 import logging
 from typing import List, Dict, Optional
+from urllib.parse import quote_plus
 
 logger = logging.getLogger(__name__)
 
 # Rotate user agents to avoid detection
 USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 ]
+
+# ASIN: 10 alphanumeric (Amazon standard)
+_ASIN_RE = re.compile(r'^[A-Z0-9]{10}$')
+
 
 def get_headers():
     """Get randomized headers for requests"""
     import random
     return {
         'User-Agent': random.choice(USER_AGENTS),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-IN,en;q=0.9,hi;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
+        # Omit br: some Python stacks mishandle Brotli and Amazon HTML becomes unusable
+        'Accept-Encoding': 'gzip, deflate',
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
         'Sec-Fetch-Dest': 'document',
         'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none'
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Referer': 'https://www.amazon.in/',
+        'Cache-Control': 'no-cache',
     }
+
+
+def _is_bot_or_captcha_html(html: str) -> bool:
+    h = html.lower()
+    return any(
+        x in h
+        for x in (
+            'api-services-support@amazon',
+            'enter the characters you see below',
+            'robot check',
+            'sorry, we just need to make sure you',
+            'type the characters in the image',
+        )
+    )
+
+
+def _title_from_result_card(card) -> Optional[str]:
+    """Amazon changes inner markup often; try several patterns."""
+    selectors = [
+        'h2 a span.a-text-normal',
+        'h2 a .a-text-normal',
+        'h2 span.a-text-normal',
+        'a.a-link-normal span.a-text-normal',
+        'h2 a span',
+        'h2 span',
+        'span.a-size-medium.a-color-base.a-text-normal',
+        'span.a-size-base-plus.a-color-base.a-text-normal',
+        '.a-size-medium.a-color-base',
+    ]
+    for sel in selectors:
+        el = card.select_one(sel)
+        if el:
+            t = el.get_text(strip=True)
+            if t and len(t) > 3:
+                return t
+    h2 = card.find('h2')
+    if h2:
+        t = h2.get_text(strip=True)
+        if t and len(t) > 3:
+            return t
+    return None
+
+
+def _price_from_card(card) -> Optional[float]:
+    off = card.select_one('span.a-price span.a-offscreen')
+    if off:
+        m = re.search(r'[\d,]+(?:\.\d+)?', off.get_text(strip=True).replace(',', ''))
+        if m:
+            try:
+                return float(m.group(0).replace(',', ''))
+            except ValueError:
+                pass
+    whole = card.find('span', class_='a-price-whole')
+    if whole:
+        try:
+            return float(whole.get_text(strip=True).replace(',', ''))
+        except ValueError:
+            pass
+    return None
+
+
+def _relevance_score(title: str, query: str) -> float:
+    """Rough token overlap so the closest title to the user's query ranks first."""
+    if not title or not query:
+        return 0.0
+    q_words = {w for w in re.findall(r'\w+', query.lower()) if len(w) > 1}
+    t_words = {w for w in re.findall(r'\w+', title.lower()) if len(w) > 1}
+    if not q_words:
+        return 0.0
+    inter = len(q_words & t_words)
+    return inter / len(q_words)
+
+
+def _collect_search_cards(soup: BeautifulSoup, max_results: int) -> List:
+    """Amazon SERP markup varies; try primary then fallback selectors."""
+    cards = soup.find_all('div', {'data-component-type': 's-search-result'})
+    if cards:
+        logger.info(f"Using s-search-result cards: {len(cards)}")
+        return cards[: max_results * 2]
+
+    cards = soup.select('div[data-asin][data-index]')
+    if cards:
+        logger.info(f"Using div[data-asin][data-index] cards: {len(cards)}")
+        return cards[: max_results * 2]
+
+    # Last resort: any block with a real ASIN + product title pattern
+    seen_asin = set()
+    out = []
+    for div in soup.find_all('div', attrs={'data-asin': True}):
+        asin = (div.get('data-asin') or '').strip().upper()
+        if not _ASIN_RE.match(asin) or asin in seen_asin:
+            continue
+        if div.get('data-component-type') == 'sp-sponsored-result':
+            continue
+        if not _title_from_result_card(div):
+            continue
+        seen_asin.add(asin)
+        out.append(div)
+        if len(out) >= max_results * 2:
+            break
+    if out:
+        logger.info(f"Using fallback data-asin cards: {len(out)}")
+    return out
 
 def search_amazon_india(product_name: str, max_results: int = 5) -> List[Dict]:
     """
@@ -47,58 +159,54 @@ def search_amazon_india(product_name: str, max_results: int = 5) -> List[Dict]:
     try:
         logger.info(f"🔍 Searching Amazon India for: {product_name}")
         
-        # Format search query
-        search_query = product_name.replace(' ', '+')
-        search_url = f"https://www.amazon.in/s?k={search_query}"
+        search_url = f"https://www.amazon.in/s?k={quote_plus(product_name.strip())}"
         
-        # Make request
         response = requests.get(
             search_url,
             headers=get_headers(),
-            timeout=10
+            timeout=15
         )
         
         if response.status_code != 200:
             logger.warning(f"Amazon returned status code: {response.status_code}")
             return []
         
-        # Parse HTML
+        raw = response.text
+        if _is_bot_or_captcha_html(raw):
+            logger.warning(
+                "Amazon returned a bot-check or captcha page (no product list). "
+                "Try again later, use a residential IP, or reduce request rate."
+            )
+            return []
+        
         soup = BeautifulSoup(response.content, 'lxml')
-        products = []
+        product_cards = _collect_search_cards(soup, max_results)
+        logger.info(f"Found {len(product_cards)} candidate product cards on Amazon")
         
-        # Find all product cards
-        product_cards = soup.find_all('div', {'data-component-type': 's-search-result'})
-        logger.info(f"Found {len(product_cards)} product cards on Amazon")
+        products: List[Dict] = []
+        seen_asin = set()
         
-        for card in product_cards[:max_results]:
+        for card in product_cards:
+            if len(products) >= max_results:
+                break
             try:
-                # Extract ASIN (Amazon product ID)
-                asin = card.get('data-asin')
-                if not asin:
+                asin = (card.get('data-asin') or '').strip().upper()
+                if not _ASIN_RE.match(asin):
+                    sub = card.select_one('[data-asin]')
+                    if sub and sub.get('data-asin'):
+                        asin = sub.get('data-asin').strip().upper()
+                if not _ASIN_RE.match(asin) or asin in seen_asin:
                     continue
                 
-                # Extract title
-                title_elem = card.find('h2', class_='')
-                if not title_elem:
-                    title_elem = card.find('span', class_='a-size-medium')
-                title = title_elem.get_text(strip=True) if title_elem else None
-                
+                title = _title_from_result_card(card)
                 if not title:
                     continue
                 
-                # Extract price
-                price_elem = card.find('span', class_='a-price-whole')
-                price = None
-                if price_elem:
-                    price_text = price_elem.get_text(strip=True).replace(',', '')
-                    try:
-                        price = float(price_text)
-                    except ValueError:
-                        pass
+                seen_asin.add(asin)
+                price = _price_from_card(card)
                 
-                # Extract rating
-                rating_elem = card.find('span', class_='a-icon-alt')
                 rating = None
+                rating_elem = card.find('span', class_='a-icon-alt')
                 if rating_elem:
                     rating_text = rating_elem.get_text(strip=True)
                     match = re.search(r'(\d+\.?\d*)', rating_text)
@@ -108,14 +216,11 @@ def search_amazon_india(product_name: str, max_results: int = 5) -> List[Dict]:
                         except ValueError:
                             pass
                 
-                # Extract image
-                img_elem = card.find('img', class_='s-image')
+                img_elem = card.find('img', class_='s-image') or card.find('img', src=re.compile(r'images-amazon'))
                 image_url = img_elem.get('src') if img_elem else None
                 
-                # Build product URL
                 product_url = f"https://www.amazon.in/dp/{asin}"
                 
-                # Extract brand (sometimes in title)
                 brand = None
                 brand_elem = card.find('span', class_='a-size-base-plus')
                 if brand_elem:
@@ -130,7 +235,7 @@ def search_amazon_india(product_name: str, max_results: int = 5) -> List[Dict]:
                     'image_url': image_url,
                     'product_url': product_url,
                     'asin': asin,
-                    'confidence': 0.8  # Base confidence for Amazon results
+                    'confidence': 0.8
                 })
                 
                 logger.info(f"✅ Found: {title[:50]}... (₹{price if price else 'N/A'})")
@@ -139,6 +244,10 @@ def search_amazon_india(product_name: str, max_results: int = 5) -> List[Dict]:
                 logger.error(f"Error parsing product card: {e}")
                 continue
         
+        products.sort(
+            key=lambda p: (_relevance_score(p.get('product_name') or '', product_name), p.get('confidence', 0)),
+            reverse=True,
+        )
         logger.info(f"✅ Returning {len(products)} products from Amazon India")
         return products
         

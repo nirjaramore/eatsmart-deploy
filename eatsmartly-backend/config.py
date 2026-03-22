@@ -103,6 +103,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = Field(default="INFO")
     # Server runtime settings (allow .env entries like PORT and NODE_ENV)
     PORT: int = Field(default=3000, description="Server port")
+    # 127.0.0.1 avoids WinError 10013 on some PCs when binding 0.0.0.0 to reserved ports
+    HOST: str = Field(default="127.0.0.1", description="Uvicorn bind host; use 0.0.0.0 for LAN access")
     NODE_ENV: str = Field(default="development", description="Node/Env name")
     
     # API Configuration

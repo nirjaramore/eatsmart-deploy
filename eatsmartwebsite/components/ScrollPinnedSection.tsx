@@ -145,17 +145,20 @@ export default function ScrollPinnedSection() {
                     width: 100%;
                     max-width: 1400px;
                     margin: 0 auto;
-                    display: flex;
+                    /* Grid: right column must keep width — flex + only position:absolute children collapsed */
+                    display: grid;
+                    grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
                     gap: 60px;
                     padding: 40px;
                     position: relative;
                     align-items: center;
+                    box-sizing: border-box;
                 }
 
                 .left-side {
-                    flex: 0 0 auto;
                     position: relative;
                     padding-left: 30px;
+                    min-width: 0;
                 }
 
                 .content ul {
@@ -178,9 +181,10 @@ export default function ScrollPinnedSection() {
                 }
 
                 .right-side {
-                    flex: 1;
                     position: relative;
                     min-height: 500px;
+                    width: 100%;
+                    min-width: 0;
                     display: flex;
                     align-items: center;
                     justify-content: center;
@@ -260,7 +264,7 @@ export default function ScrollPinnedSection() {
 
                 @media (max-width: 768px) {
                     .content {
-                        flex-direction: column;
+                        grid-template-columns: 1fr;
                         gap: 30px;
                         padding: 20px;
                     }

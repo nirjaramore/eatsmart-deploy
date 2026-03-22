@@ -24,7 +24,7 @@ def get_headers():
         'User-Agent': random.choice(USER_AGENTS),
         'Accept': 'application/json, text/plain, */*',
         'Accept-Language': 'en-IN,en;q=0.9,hi;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Encoding': 'gzip, deflate',
         'Connection': 'keep-alive',
         'Referer': 'https://www.bigbasket.com/'
     }
@@ -56,7 +56,7 @@ def search_bigbasket(product_name: str, max_results: int = 5) -> List[Dict]:
             search_url,
             params=params,
             headers=get_headers(),
-            timeout=10
+            timeout=(5, 25)
         )
         
         if response.status_code != 200:

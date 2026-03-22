@@ -4,11 +4,11 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo
 import {
   motion,
   AnimatePresence,
-  Transition,
-  type VariantLabels,
+  type Transition,
+  type Variant,
   type Target,
   type TargetAndTransition
-} from 'motion/react';
+} from 'framer-motion';
 
 import './RotatingText.css';
 
@@ -30,9 +30,9 @@ export interface RotatingTextProps
   > {
   texts: string[];
   transition?: Transition;
-  initial?: boolean | Target | VariantLabels;
-  animate?: boolean | VariantLabels | TargetAndTransition;
-  exit?: Target | VariantLabels;
+  initial?: boolean | Target | Variant;
+  animate?: boolean | Variant | TargetAndTransition;
+  exit?: Target | Variant;
   animatePresenceMode?: 'sync' | 'wait';
   animatePresenceInitial?: boolean;
   rotationInterval?: number;

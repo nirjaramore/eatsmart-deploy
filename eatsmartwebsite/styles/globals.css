@@ -66,30 +66,24 @@
 html,
 body,
 #__next {
-    height: 100%;
+    min-height: 100%;
 }
 
 body {
     width: 100%;
+    margin: 0;
+    box-sizing: border-box;
     background: #fae5e7;
     padding: 8px 24px;
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    position: relative;
+    display: block;
 }
 
-.top-nav {
-    display: flex;
-    gap: 120px;
-    position: relative;
-    left: 30%;
-    transform: translateX(-50%);
-    z-index: 10001;
-    margin: 0 auto;
+/* Next.js root must span full width (avoid flex-on-body shrink/wrap issues) */
+#__next {
+    width: 100%;
+    min-height: 100%;
+    display: block;
 }
 
 .top-link {
@@ -325,9 +319,53 @@ body {
 }
 
 /* Hero text block - clean typography matching attached design */
+/* Region below header: hero art fills it; headline is vertically centered in this region */
+.hero-stage {
+    position: relative;
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: clamp(520px, calc(100vh - 88px), 1600px);
+    overflow: hidden;
+}
+
+/* Strong right bias: main illustration sits in the right half — no overlap with left headline */
+.hero-stage__bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 100% center;
+    z-index: 0;
+    pointer-events: none;
+    /* Extra horizontal gap — push art further right */
+    transform: translate(30%, 0) scale(1.18);
+    transform-origin: 96% center;
+    outline: none;
+    border: none;
+}
+
 .hero-text-block {
-    max-width: 1200px;
     margin: 0;
+    flex: 0 0 auto;
+}
+
+.hero-headline-wrap {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 clamp(1rem, 4vw, 2.5rem) 0 clamp(1rem, 5vw, 3.5rem);
+    pointer-events: none;
+}
+
+.hero-headline-wrap .hero-text-block {
+    pointer-events: auto;
+    width: auto;
+    /* Narrower left column = more empty space before the art */
+    max-width: min(640px, min(44vw, 90vw));
 }
 
 .hero-main-text {
@@ -339,6 +377,26 @@ body {
     color: #e27575;
     margin: 0;
     text-transform: lowercase;
+    /* Keep pink headline readable over the hero art */
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9), 0 0 24px rgba(255, 248, 248, 0.85);
+}
+
+/* Left column: stacked headline lines */
+.hero-main-text--stacked {
+    font-size: clamp(2.4rem, 7vw, 5.75rem);
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+}
+
+.hero-main-text--stacked .hero-line {
+    display: block;
+    white-space: normal;
+    margin: 0;
+}
+
+/* Line 2: keep “what you are” on one line; line 3: “eating” */
+.hero-main-text--stacked .hero-line:nth-child(2) {
+    white-space: nowrap;
 }
 
 .hero-main-text em {
@@ -346,23 +404,31 @@ body {
     font-weight: 400;
 }
 
-/* spacing helpers for staggered words in hero */
-.hero-offset-what {
-    display: inline-block;
-    margin-left: 25rem;
-    /* increased to move 'what' further right */
+@media (max-width: 900px) {
+    .hero-headline-wrap .hero-text-block {
+        max-width: min(640px, min(58vw, 90vw));
+    }
+
+    .hero-stage__bg {
+        transform: translate(24%, 0) scale(1.16);
+        transform-origin: 95% center;
+    }
 }
 
-.hero-offset-eating {
-    display: inline-block;
-    position: relative;
-    left: 9rem;
-    /* visually shift right without reflow/wrapping */
-}
+@media (max-width: 640px) {
+    .hero-stage__bg {
+        object-position: 100% center;
+        transform: translate(18%, 0) scale(1.18);
+        transform-origin: 94% center;
+    }
 
-/* Keep each hero line on a single line to avoid wrapping when shifted */
-.hero-main-text span {
-    white-space: nowrap;
+    .hero-headline-wrap .hero-text-block {
+        max-width: min(92vw, 380px);
+    }
+
+    .hero-main-text--stacked .hero-line:nth-child(2) {
+        white-space: normal;
+    }
 }
 
 /* Shared site header */
@@ -578,14 +644,21 @@ body {
     }
 }
 
-.hero-bg-video {
-    /* Disable pan animation to keep video static and centered */
+/* Hero background image: behind text, slightly transparent so headline stays readable */
+.hero-bg-media {
     animation: none !important;
     will-change: auto !important;
-    transform: none !important;
-    object-position: center center !important;
-    mix-blend-mode: multiply;
-    filter: saturate(0.95) contrast(0.98);
+    mix-blend-mode: normal;
+    opacity: 0.82;
+    filter: saturate(1.02) contrast(0.98);
+}
+
+.hero-bg-video {
+    /* legacy class name if referenced elsewhere */
+    animation: none !important;
+    will-change: auto !important;
+    mix-blend-mode: normal;
+    filter: none;
 }
 
 /* What we offer section */

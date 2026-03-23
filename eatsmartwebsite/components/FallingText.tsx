@@ -1,6 +1,6 @@
 /// <reference path="./matter-js.d.ts" />
 import { useRef, useState, useEffect } from 'react';
-import Matter from 'matter-js';
+const Matter = require('matter-js');
 import './FallingText.css';
 
 interface FallingTextProps {

@@ -1,3 +1,4 @@
+/// <reference path="./matter-js.d.ts" />
 import { useRef, useState, useEffect } from 'react';
 import Matter from 'matter-js';
 import './FallingText.css';

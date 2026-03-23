@@ -225,7 +225,7 @@ function parseNutrition(text: string) {
 }
 
 export default function ImageUploadExtract() {
-    const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8006').replace(/\/$/, '')
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL!.replace(/\/$/, '')
     const [items, setItems] = useState<Item[]>([])
     const [showThankYou, setShowThankYou] = useState(false)
     const [thankYouMessage, setThankYouMessage] = useState('')

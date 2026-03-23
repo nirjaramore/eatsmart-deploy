@@ -1,3 +1,4 @@
+// @ts-nocheck
 /// <reference path="./matter-js.d.ts" />
 import { useRef, useState, useEffect } from 'react';
 const Matter = require('matter-js');

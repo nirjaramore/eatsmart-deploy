@@ -1,53 +1,66 @@
 import Head from 'next/head'
+import dynamic from 'next/dynamic'
 import Hero from '../components/Hero'
 import CurvedLoop from '../components/CurvedLoop'
 // import AutoZoomGallery from '../components/AutoZoomGallery'
 import ScrollPinnedSection from '../components/ScrollPinnedSection'
-import ImageUploadExtract from '../components/ImageUploadExtract'
+
+// 🔥 IMPORTANT: Disable SSR for this component
+const ImageUploadExtract = dynamic(
+  () => import('../components/ImageUploadExtract'),
+  { ssr: false }
+)
 
 export default function Home() {
-    return (
-        <>
-            <Head>
-                <title>EatSmart - Know what you are eating</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1" />
-            </Head>
-            <main>
-                <Hero />
+  return (
+    <>
+      <Head>
+        <title>EatSmart - Know what you are eating</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </Head>
 
-                {/* Second section: curved marquee placed below the hero so it is not behind the video */}
-                <section aria-label="Join our community" style={{ position: 'relative', zIndex: 1, paddingTop: '2rem', paddingBottom: '4rem', background: 'transparent' }}>
-                    <CurvedLoop marqueeText="Join our community" className="curved-loop-text" interactive />
-                </section>
+      <main>
+        <Hero />
 
-                {/* (Moved) What we offer section will appear after the ScrollPinnedSection below */}
+        {/* Curved loop section */}
+        <section
+          aria-label="Join our community"
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            paddingTop: '2rem',
+            paddingBottom: '4rem',
+            background: 'transparent'
+          }}
+        >
+          <CurvedLoop
+            marqueeText="Join our community"
+            className="curved-loop-text"
+            interactive
+          />
+        </section>
 
-                {/* Third section: Image upload (placed above the auto-zoom gallery) */}
-                <section id="upload-section" aria-label="Upload product">
-                    <ImageUploadExtract />
-                </section>
+        {/* Upload Section (SSR disabled component) */}
+        <section id="upload-section" aria-label="Upload product">
+          <ImageUploadExtract />
+        </section>
 
-                {/* Fourth section: GSAP auto-zoom bento gallery — commented out (restore import + <AutoZoomGallery /> to show images) */}
-                {/* <AutoZoomGallery /> */}
+        {/* Scroll Section */}
+        <ScrollPinnedSection />
 
-                {/* Fifth section: Scroll-pinned section with transitioning images */}
-                <ScrollPinnedSection />
-
-                {/* What we offer (background image) - placed after How We Work Together */}
-                <section
-                    aria-label="What we offer"
-                    className="what-we-offer"
-                    style={{
-                        backgroundImage: `url(${encodeURI('/asset/download (33).jpeg')})`,
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                        padding: '6rem 0',
-                        minHeight: '360px'
-                    }}
-                />
-
-                {/* Upload: back-of-pack photo + product name → Next → API (barcode/OFF, then Amazon/BigBasket scraper) */}
-            </main>
-        </>
-    )
+        {/* What we offer */}
+        <section
+          aria-label="What we offer"
+          className="what-we-offer"
+          style={{
+            backgroundImage: `url(${encodeURI('/asset/download (33).jpeg')})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            padding: '6rem 0',
+            minHeight: '360px'
+          }}
+        />
+      </main>
+    </>
+  )
 }

@@ -4,7 +4,7 @@ import styles from './ProductCard.module.css'
 type ProductCardProps = {
   id: string
   barcode?: string
-  product_name: string
+  product_name?: string
   brand?: string
   manufacturer?: string
   region?: string
@@ -22,7 +22,6 @@ export default function ProductCard({
   weight,
   image_url,
   is_verified,
-  barcode,
 }: ProductCardProps) {
   const [imageError, setImageError] = useState(false)
   const [imageLoading, setImageLoading] = useState(true)
@@ -36,24 +35,28 @@ export default function ProductCard({
     setImageLoading(false)
   }
 
-  // ✅ FIXED: Use backend-provided URL directly, no double encoding
-  const displayImage =
-    imageError || !image_url
+  // ✅ SAFE FALLBACKS (VERY IMPORTANT)
+  const safeName = product_name?.trim() || 'Product'
+  const safeImage =
+    !image_url || imageError
       ? '/asset/placeholder.svg'
       : image_url
 
   return (
     <div className={styles.productCard}>
       <div className={styles.imageWrapper}>
+        
+        {/* Loader */}
         {imageLoading && !imageError && (
           <div className={styles.imagePlaceholder}>
             <div className={styles.imageLoader}></div>
           </div>
         )}
 
+        {/* Image */}
         <img
-          src={displayImage}
-          alt={product_name}
+          src={safeImage}
+          alt={safeName}
           className={`${styles.productImage} ${
             imageLoading ? styles.imageHidden : ''
           }`}
@@ -63,6 +66,7 @@ export default function ProductCard({
           referrerPolicy="no-referrer"
         />
 
+        {/* Verified Badge */}
         {is_verified && (
           <div className={styles.verifiedBadge} title="Verified Product">
             <svg
@@ -70,7 +74,6 @@ export default function ProductCard({
               height="16"
               viewBox="0 0 24 24"
               fill="none"
-              xmlns="http://www.w3.org/2000/svg"
             >
               <path
                 d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
@@ -83,11 +86,26 @@ export default function ProductCard({
           </div>
         )}
 
-        {region && <div className={styles.regionBadge}>{region}</div>}
+        {/* Region Badge */}
+        {region && (
+          <div className={styles.regionBadge}>
+            {region}
+          </div>
+        )}
       </div>
 
+      {/* Product Info */}
       <div className={styles.productInfo}>
-        <h3 className={styles.productName}>{product_name}</h3>
+        <h3 className={styles.productName}>
+          {safeName}
+        </h3>
+
+        {/* OPTIONAL: show brand (helps UI feel like before) */}
+        {brand && (
+          <p className={styles.productBrand}>
+            {brand}
+          </p>
+        )}
       </div>
     </div>
   )

@@ -5,15 +5,13 @@ import SiteHeader from '../components/SiteHeader'
 import styles from '../styles/ProductsPage.module.css'
 
 /* ===============================
-   API BASE URL (PRODUCTION)
+   API BASE URL (SAFE)
    =============================== */
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  'https://eatsmart-backend-je3d.onrender.com'
+  (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '')
 
 const SUPABASE_PUBLIC_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  'https://reqfxmbjbfzhxvufrpsr.supabase.co'
+  process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 
 /* ===============================
    TYPES
@@ -21,13 +19,12 @@ const SUPABASE_PUBLIC_URL =
 type ProductItem = {
   id: string
   barcode?: string
-  product_name: string
+  product_name?: string
   brand?: string
   image_type?: string
   manufacturer?: string
   region?: string
   weight?: string
-  fssai_license?: string
   image_url?: string
   is_verified?: boolean
   created_at?: string
@@ -37,37 +34,22 @@ type ProductItem = {
 type ProductsResponse = {
   products: ProductItem[]
   total: number
-  regions?: string[]
-  brands?: string[]
 }
 
 /* ===============================
    IMAGE NORMALIZER
    =============================== */
-function normalizeImageUrl(
-  rawImageUrl: string | undefined
-): string | undefined {
-  if (!rawImageUrl) return undefined
-  const trimmed = rawImageUrl.trim()
+function normalizeImageUrl(raw?: string): string | undefined {
+  if (!raw) return undefined
+
+  const trimmed = raw.trim()
   if (!trimmed) return undefined
 
-  if (trimmed.startsWith('http')) return encodeURI(trimmed)
+  // already full URL
+  if (trimmed.startsWith('http')) return trimmed
 
-  if (trimmed.startsWith('/storage/v1/object/public/')) {
-    return encodeURI(`${SUPABASE_PUBLIC_URL}${trimmed}`)
-  }
-
-  if (trimmed.startsWith('storage/v1/object/public/')) {
-    return encodeURI(`${SUPABASE_PUBLIC_URL}/${trimmed}`)
-  }
-
-  if (!trimmed.includes('://') && /^[a-z0-9_-]+\//i.test(trimmed)) {
-    return encodeURI(
-      `${SUPABASE_PUBLIC_URL}/storage/v1/object/public/${trimmed}`
-    )
-  }
-
-  return encodeURI(trimmed)
+  // Supabase full path fix
+  return `${SUPABASE_PUBLIC_URL}/storage/v1/object/public/${trimmed}`
 }
 
 /* ===============================
@@ -76,12 +58,10 @@ function normalizeImageUrl(
 function mapProductRow(r: any): ProductItem {
   return {
     id: `p-${r.id}`,
-    barcode: r.barcode,
     product_name: r.product_name,
     brand: r.brand,
     image_url: r.image_url,
     is_verified: r.is_verified,
-    created_at: r.created_at,
     uploaded_at: r.updated_at || r.created_at,
   }
 }
@@ -89,10 +69,8 @@ function mapProductRow(r: any): ProductItem {
 function mapFoodImageRow(r: any): ProductItem {
   return {
     id: `fi-${r.id}`,
-    barcode: r.barcode,
     product_name: r.product_name,
     image_url: r.image_url,
-    image_type: r.image_type,
     uploaded_at: r.uploaded_at,
   }
 }
@@ -101,12 +79,8 @@ function dedupeProducts(items: ProductItem[]): ProductItem[] {
   const map = new Map<string, ProductItem>()
 
   for (const item of items) {
-    const key = item.barcode || item.product_name
-    const existing = map.get(key)
-
-    if (!existing || new Date(item.uploaded_at || 0) > new Date(existing.uploaded_at || 0)) {
-      map.set(key, item)
-    }
+    const key = item.product_name || item.id
+    map.set(key, item)
   }
 
   return Array.from(map.values())
@@ -129,16 +103,14 @@ export default function Product() {
     const q = query.toLowerCase()
 
     const filtered = products.filter(p =>
-      p.product_name?.toLowerCase().includes(q) ||
-      p.brand?.toLowerCase().includes(q) ||
-      p.barcode?.includes(query)
+      p.product_name?.toLowerCase().includes(q)
     )
 
     setFilteredProducts(filtered)
   }, [query, products])
 
   /* ===============================
-     FETCH (FIXED)
+     FETCH (SAFE)
      =============================== */
   const fetchProducts = async () => {
     setLoading(true)
@@ -157,20 +129,18 @@ export default function Product() {
         ? await foodRes.json()
         : { products: [], total: 0 }
 
-      const mapped = [
+      const merged = [
         ...prodJson.products.map(mapProductRow),
         ...foodJson.products.map(mapFoodImageRow),
       ]
 
-      const deduped = dedupeProducts(mapped)
-
-      const enriched = deduped.map(p => ({
+      const finalProducts = dedupeProducts(merged).map(p => ({
         ...p,
         image_url: normalizeImageUrl(p.image_url),
       }))
 
-      setProducts(enriched)
-      setFilteredProducts(enriched)
+      setProducts(finalProducts)
+      setFilteredProducts(finalProducts)
     } catch (err) {
       console.error('Fetch failed', err)
     } finally {
@@ -187,21 +157,33 @@ export default function Product() {
       <main className={styles.productsMain}>
         <SiteHeader active="product" />
 
+        {/* 🔥 FIXED HEADING STYLE */}
         <section className={styles.productsHero}>
-          <h1>Discover Healthy Products</h1>
+          <h1 className={styles.productsTitle}>
+            Discover Healthy Products
+          </h1>
         </section>
 
-        <section>
-          <input
-            placeholder="Search..."
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-          />
-        </section>
+        {/* 🔥 FIXED SEARCH BAR */}
+        <section className={styles.searchForm}>
+  <div className={styles.searchWrapper}>
+    
+    <span className={styles.searchIcon}>🔍</span>
 
+    <input
+      className={styles.searchInput}
+      placeholder="Search healthy products..."
+      value={query}
+      onChange={e => setQuery(e.target.value)}
+    />
+
+  </div>
+</section>
+
+        {/* PRODUCTS */}
         <section>
           {loading ? (
-            <p>Loading...</p>
+            <p className={styles.loading}>Loading...</p>
           ) : (
             <div className={styles.productsGrid}>
               {filteredProducts.map(p => (

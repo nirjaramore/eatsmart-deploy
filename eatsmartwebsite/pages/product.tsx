@@ -134,10 +134,12 @@ export default function Product() {
         ...foodJson.products.map(mapFoodImageRow),
       ]
 
-      const finalProducts = dedupeProducts(merged).map(p => ({
-        ...p,
-        image_url: normalizeImageUrl(p.image_url),
-      }))
+      const finalProducts = dedupeProducts(merged)
+  .map(p => ({
+    ...p,
+    image_url: normalizeImageUrl(p.image_url),
+  }))
+  .filter(p => p.image_url && p.product_name !== 'Product')
 
       setProducts(finalProducts)
       setFilteredProducts(finalProducts)
@@ -158,27 +160,20 @@ export default function Product() {
         <SiteHeader active="product" />
 
         {/* 🔥 FIXED HEADING STYLE */}
-        <section className={styles.productsHero}>
-          <h1 className={styles.productsTitle}>
-            Discover Healthy Products
-          </h1>
-        </section>
+        <div style={{ marginTop: '24px', marginBottom: '24px' }}>
+  <section className={styles.searchForm}>
+    <div className={styles.searchWrapper}>
+      <span className={styles.searchIcon}>🔍</span>
 
-        {/* 🔥 FIXED SEARCH BAR */}
-        <section className={styles.searchForm}>
-  <div className={styles.searchWrapper}>
-    
-    <span className={styles.searchIcon}>🔍</span>
-
-    <input
-      className={styles.searchInput}
-      placeholder="Search healthy products..."
-      value={query}
-      onChange={e => setQuery(e.target.value)}
-    />
-
-  </div>
-</section>
+      <input
+        className={styles.searchInput}
+        placeholder="Search healthy products..."
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+      />
+    </div>
+  </section>
+</div>
 
         {/* PRODUCTS */}
         <section>

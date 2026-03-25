@@ -849,3 +849,41 @@ body {
         font-size: clamp(1.5rem, 8vw, 2.5rem);
     }
 }
+
+/* ================= MOBILE HERO FIX ================= */
+@media (max-width: 768px) {
+
+  /* Fix hero section height + spacing */
+  .hero-stage {
+    min-height: auto !important;
+    height: auto !important;
+    padding: 40px 16px;
+  }
+
+  /* Fix background image visibility */
+  .hero-stage__bg {
+    object-fit: contain !important;
+    transform: none !important;
+    position: relative;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Fix text positioning */
+  .hero-headline-wrap {
+    position: relative !important;
+    padding: 20px 16px !important;
+    justify-content: flex-start;
+  }
+
+  /* Fix text size */
+  .hero-main-text--stacked {
+    font-size: clamp(2rem, 8vw, 3rem);
+    line-height: 1.2;
+  }
+
+  /* Allow text wrapping properly */
+  .hero-main-text--stacked .hero-line:nth-child(2) {
+    white-space: normal !important;
+  }
+}
